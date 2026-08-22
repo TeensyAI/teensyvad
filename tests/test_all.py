@@ -5,6 +5,7 @@ Run:  .venv/bin/python -m pytest tests/ -v
 
 import numpy as np
 import pytest
+from pathlib import Path
 
 from teensyvad.audio import (dbfs, float_to_pcm16, mulaw_decode,
                              mulaw_encode, pcm16_to_float, read_wav,
@@ -280,6 +281,95 @@ def test_streaming_flush_closes_open_segment(tmp_path):
     assert flushed[0].t > 0.5
     assert not vad.in_speech
     assert vad.flush() == []                    # idempotent
+
+
+# ==========================================================================
+# quant.py — int8 dynamic quantization
+# ==========================================================================
+
+def test_quantize_weight_roundtrip_error():
+    from teensyvad.quant import quantize_weight, quantize_rows, qmatmul
+    W = RNG.normal(0, 0.05, (400, 48)).astype(np.float32)
+    Wq, sw = quantize_weight(W)
+    assert Wq.dtype == np.int8 and Wq.shape == W.shape
+    W_hat = Wq.astype(np.float32) * sw
+    rel = np.abs(W - W_hat).max() / np.abs(W).max()
+    assert rel < 2 / 127                          # ≤ ~1 quantisation step
+
+    x = RNG.normal(0, 2, (8, 400)).astype(np.float32)
+    xq, sx = quantize_rows(x)
+    y = qmatmul(xq, sx, Wq, sw)
+    y_ref = x @ W
+    # int8 matmul approximates float within a few percent
+    assert np.abs(y - y_ref).max() / np.abs(y_ref).max() < 0.05
+
+
+def test_quantized_mlp_matches_float_on_task(tmp_path):
+    from teensyvad.quant import QuantizedMLP, load_any
+    model_path, _ = _save_tiny_model(tmp_path)
+    base = MLP.load(model_path)
+    lm = LogMel(sr=8000)
+
+    # in-distribution frames: the same two generator classes the tiny
+    # model was trained on (harmonic stacks vs low-frequency rumble),
+    # features built exactly like training (full log-mel + deltas)
+    rng = np.random.default_rng(11)
+    speech_frames, noise_frames = [], []
+    for _ in range(300):
+        f0 = float(rng.uniform(100, 350))
+        t = np.arange(lm.frame_len) / 8000
+        s = sum(np.sin(2 * np.pi * f0 * h * t) * (0.8 ** h) for h in (1, 2, 3))
+        speech_frames.append(s + 0.05 * rng.normal(size=lm.frame_len))
+        x = rng.normal(size=lm.frame_len)
+        k = np.exp(-np.arange(lm.frame_len) / 20)
+        noise_frames.append(np.convolve(x, k, mode="same") * 0.3)
+    F = np.concatenate([
+        lm(np.asarray(speech_frames, dtype=np.float32).ravel()),
+        lm(np.asarray(noise_frames, dtype=np.float32).ravel()),
+    ])
+    K = 4
+    X = np.stack([F[i - K + 1: i + 1].ravel() for i in range(K - 1, len(F))])
+    X = X.astype(np.float32)
+
+    p0 = base.probs(X)
+    qm = QuantizedMLP(list(base.sizes), {"W1": True, "W2": True, "W3": True})
+    qm.quantize_from(base)
+    p1 = qm.probs(X)
+    assert np.corrcoef(p0, p1)[0, 1] > 0.99
+    assert np.mean((p0 > .5) == (p1 > .5)) > 0.95
+
+    # npz must actually be SMALLER (float copies of quantised layers dropped)
+    q_path = tmp_path / "q.npz"
+    qm.save(q_path)
+    assert q_path.stat().st_size < Path(model_path).stat().st_size
+    # transparent reload via load_any + dequantised views in place
+    q2 = load_any(q_path)
+    assert isinstance(q2, QuantizedMLP)
+    assert q2.qmask == qm.qmask
+    np.testing.assert_allclose(q2.probs(X), p1, atol=1e-6)
+
+
+def test_streaming_vad_with_quantized_model(tmp_path):
+    from teensyvad.quant import QuantizedMLP
+    model_path, _ = _save_tiny_model(tmp_path)
+    q_path = tmp_path / "tiny-q.npz"
+    base = MLP.load(model_path)
+    QuantizedMLP(list(base.sizes), {"W1": True, "W2": True, "W3": True}) \
+        .quantize_from(base).save(q_path, extra_meta=base.meta)
+    vad = StreamingVAD(q_path)                    # loads via load_any
+    sr = vad.sr
+    # same stimulus as the float end-to-end test: harmonic "speech" burst
+    t = np.arange(sr * 2) / sr
+    speech = sum(np.sin(2 * np.pi * 200 * h * t) * (0.7 ** h) for h in (1, 2, 3, 4))
+    x = (0.05 * RNG.normal(size=len(t))).astype(np.float32)
+    x[sr // 2: sr // 2 + sr] += speech[sr // 2: sr // 2 + sr].astype(np.float32)
+    events = []
+    pcm = float_to_pcm16(x)
+    for i in range(0, len(pcm), 320):
+        events += vad.feed(pcm[i:i + 320])
+    events += vad.flush()
+    starts = [e.t for e in events if e.type == "speech_start"]
+    assert len(starts) == 1 and 0.3 <= starts[0] <= 0.9
 
 
 def _save_tiny_model(tmp_path, context=4):

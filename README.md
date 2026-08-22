@@ -33,9 +33,12 @@ PCM audio ─▶ log-mel features ─▶ tiny MLP ─▶ P(speech) ─▶ smooth
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install numpy pytest matplotlib
-.venv/bin/python -m pytest tests/ -v          # 22 tests, <1 s
+.venv/bin/python -m pytest tests/ -v          # 26 tests, <1 s
 
-# optional: rebuild everything from public datasets (~700 MB download)
+# the whole pipeline in one command (resumable, ~10 min download + ~12 min compute):
+.venv/bin/python scripts/train_all.py
+
+# individual steps still work:
 .venv/bin/python scripts/prepare_data.py       # → data/prepared/*.npz
 .venv/bin/python scripts/train.py              # ~30 s  → models/teensy-v1.npz
 .venv/bin/python scripts/evaluate.py           # quality vs the energy VAD
@@ -174,6 +177,58 @@ Asterisk ≥ 16 you can also keep audio out of the dialplan entirely and
 let this server be the consumer; for media *manipulation* (vs analysis)
 you'd add a `TRACE`/ARI path — ask and we'll build it.
 
+## Train the full thing end to end — one command
+
+```bash
+.venv/bin/python scripts/train_all.py
+```
+
+Downloads LibriSpeech + ESC-50, builds 8 kHz mixtures, Silero-relabels
+them, trains v1 (construction labels) and v2 (distilled, hard + soft),
+calibrates event thresholds, evaluates, quantizes (int8 + selective +
+ONNX) and runs the tests. **Every stage is resumable** — it skips work
+whose outputs already exist, so you can re-run freely; `--only quantize`
+or `--skip download extract` narrow it down. From an empty cache on an
+M2: ~10 min download + ~12 min compute.
+
+**8 kHz doctrine**: everything is native 8 kHz, end to end — no
+resampling anywhere in training or serving. PSTN lines, G.711 µ-law and
+A-law, and Asterisk's `slin` are all 8 kHz; real telephony is narrowband,
+so a 16 kHz core (like some toolkits use) pays an upsample-per-hop tax
+for bandwidth a phone call never carries.
+
+## Quantization (post-training, int8)
+
+```bash
+.venv/bin/python scripts/quantize.py --model models/teensy-v2.npz   # numpy int8
+.venv/bin/python scripts/export_onnx.py --model models/teensy-v2.npz # ONNX f32+int8
+```
+
+`quantize.py` first measures **per-layer sensitivity** (quantize one
+layer at a time, check the AUC cost) — that's what makes quantization
+*selective*: only layers under tolerance go int8, sensitive ones stay
+float32. Measured on this model: **every layer quantizes for free**
+(ΔAUC ±0.0000, decision agreement 99.72%), so selective chose
+everything — but the analysis runs every time and decides from data.
+
+Honest numbers (M2 Pro, measured, not promised):
+
+| path | single frame | batched | size | note |
+|---|---|---|---|---|
+| numpy float32 | 14–15 µs | 0.27 µs | 86.6 KB | default; zero deps |
+| numpy int8 | 44 µs | ~3 µs | **28.3 KB** | **no int8 BLAS in numpy** — slower but 3× smaller; at our scale still ~230× RT |
+| ONNX float32 | 6.6 µs | 0.09 µs | 80.2 KB | matches numpy to 3e-6 |
+| ONNX int8 | 7.5 µs | **0.067 µs** | **22.3 KB** | real int8 kernels |
+
+Reading: in pure numpy, int8 is a **size** play, not a speed play
+(numpy `int8 @ int8` even overflows — see `quant.py`, we force int32
+accumulation). For a 20k-param model that's fine: even the "slow" path
+is hundreds× real-time, and the 28 KB npz drops into StreamingVAD
+unchanged (`load_any` picks the right loader). When speed is the goal,
+ONNX int8 is fastest batched and the file is 22 KB.
+
+
+
 ## Distillation: teensyvad 2.0 from Silero (teacher → student)
 
 Construction labels know *where the utterance was placed*, but not where
@@ -243,6 +298,9 @@ boundary timing, speed ratio).
 | `teensyvad/energy_vad.py` | the energy baseline, same API |
 | `scripts/prepare_data.py` | mixture construction, SNR, µ-law augmentation |
 | `scripts/train.py` | training loop + threshold calibration |
+| `scripts/train_all.py` | the whole pipeline, one resumable command |
+| `scripts/quantize.py` | int8 + selective quantization w/ sensitivity analysis |
+| `scripts/export_onnx.py` | ONNX float32/int8 export + speed table |
 | `scripts/evaluate.py` | frame + event metrics, baseline comparison |
 | `scripts/benchmark.py` | µs/frame and real-time factor |
 | `scripts/demo_file.py` | run/plot VAD on any wav |
@@ -250,7 +308,8 @@ boundary timing, speed ratio).
 | `scripts/distill_label.py` | Silero teacher → soft labels (+ disagreement report) |
 | `scripts/calibrate_events.py` | event-level threshold calibration |
 | `scripts/evaluate_distill.py` | student vs teacher: agreement, boundaries, speed |
-| `tests/test_all.py` | 23 tests incl. streaming≡offline and gradcheck |
+| `teensyvad/quant.py` | int8 dynamic quantization (per-layer, selective) |
+| `tests/test_all.py` | 26 tests incl. streaming≡offline, gradcheck, quantized round-trip |
 
 ## Limits & next steps
 

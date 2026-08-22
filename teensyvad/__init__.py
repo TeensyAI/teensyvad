@@ -13,16 +13,18 @@ The point of this package is that nothing is hidden:
 
 from .audio import DEFAULT_SR
 from .energy_vad import EnergyVAD
-from .model import MLP, load_model
+from .model import MLP
+from .quant import QuantizedMLP, load_any
 from .streaming import StreamingVAD
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "DEFAULT_SR",
     "EnergyVAD",
     "MLP",
+    "QuantizedMLP",
     "StreamingVAD",
-    "load_model",
+    "load_any",
     "__version__",
 ]

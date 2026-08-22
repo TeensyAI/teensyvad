@@ -29,7 +29,10 @@ import numpy as np
 
 from .audio import DEFAULT_SR, pcm16_to_float
 from .features import LogMel, StreamingLogMel
-from .model import MLP, load_model
+from .model import MLP
+from .quant import load_any as _load_any
+
+load_model = _load_any   # accepts float32 AND quantized .npz files
 
 
 @dataclass
