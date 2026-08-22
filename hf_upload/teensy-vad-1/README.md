@@ -125,6 +125,31 @@ over-triggering) vs 0.976 here.
 * Operating thresholds stored in metadata were tuned on synthetic
   validation; real-domain thresholds differ (see v3's profiles).
 
+## Models in this repository (named variants)
+
+All variants share the architecture and training recipe of this card —
+they differ only in hidden-layer size (88/48, 164/88, 200/96) and were
+trained to map the capacity/accuracy trade-off:
+
+| name | file | params | KB | role |
+|---|---|---|---|---|
+| **teensy-v1** | `teensy-v1.npz` | 20,449 | 87 | the original — family sweet spot |
+| teensy-v1-40k | `teensy-v1-40k.npz` | 39,609 | 162 | capacity probe |
+| teensy-v1-80k | `teensy-v1-80k.npz` | 80,373 | 321 | capacity probe (family's best AUCs) |
+| teensy-v1-100k | `teensy-v1-100k.npz` | 99,593 | 396 | capacity probe |
+
+ONNX exports (float32 + dynamic int8) are provided for the 20k model.
+
+### Accuracy & speed of every variant
+
+![teensy-vad-1 variants vs baselines](chart_v1.png)
+
+(Measured on the shared protocol — TEN VAD public set + AMI SDM meetings,
+human labels, AMI-dev-calibrated operating points, AUC on raw
+probabilities; see [BENCHMARKS.md](https://huggingface.co/Teensy/teensy-vad-3/blob/main/BENCHMARKS.md).
+Note accuracy is flat across sizes: the 1M-frame training set saturates
+first — scaling capacity without scaling data buys nothing here.)
+
 ## Comparison vs Energy / WebRTC / Silero
 
 Same protocol for every system, human-labelled real audio, operating

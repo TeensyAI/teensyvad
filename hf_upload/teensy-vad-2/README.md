@@ -125,6 +125,33 @@ use the ONNX int8 file (real int8 kernels, 0.067 µs/frame batched).
   used AMI-calibrated thresholds (0.10); the stored default suits
   synthetic-event use.
 
+## Models in this repository (named variants)
+
+All variants share the architecture and distillation recipe of this
+card — float variants differ only in hidden-layer size (88/48, 164/88,
+200/96); the QAT variant is the 20k net fine-tuned under int8 simulation:
+
+| name | file | params | KB | role |
+|---|---|---|---|---|
+| **teensy-v2** | `teensy-v2.npz` | 20,449 | 87 | the default — distilled 20k, tightest boundaries |
+| teensy-v2-40k | `teensy-v2-40k.npz` | 39,609 | 162 | capacity probe |
+| teensy-v2-80k | `teensy-v2-80k.npz` | 80,373 | 321 | capacity probe |
+| teensy-v2-100k | `teensy-v2-100k.npz` | 99,593 | 396 | capacity probe |
+| teensy-v2-qat | `teensy-v2-qat.npz` | 20,449 | **28** | int8 QAT — smallest accurate artifact |
+
+ONNX exports (float32 + dynamic int8) are provided for the 20k model.
+
+### Accuracy & speed of every variant
+
+![teensy-vad-2 variants vs baselines](chart_v2.png)
+
+(Measured on the shared protocol — TEN VAD public set + AMI SDM meetings,
+human labels, AMI-dev-calibrated operating points, AUC on raw
+probabilities; see [BENCHMARKS.md](https://huggingface.co/Teensy/teensy-vad-3/blob/main/BENCHMARKS.md).
+Accuracy is flat from 20k→100k on the 1M-frame training set — the
+distilled 20k is the family's sweet spot; scale data instead, see
+[teensy-vad-3](https://huggingface.co/Teensy/teensy-vad-3).)
+
 ## Comparison vs Energy / WebRTC / Silero
 
 Same protocol for every system, human-labelled real audio, operating

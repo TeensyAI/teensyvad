@@ -135,6 +135,31 @@ evaluation meetings were never used for any tuning.
   this family stays a readable MLP).
 * µ-law/PSTN robustness verified; packet-loss concealment not modelled.
 
+## Models in this repository (named variants)
+
+All variants share the 10.7M-frame scaled training recipe of this card —
+float variants differ only in hidden-layer size (88/48, 164/88, 200/96);
+the QAT variant is the 20k net fine-tuned under int8 simulation:
+
+| name | file | params | KB | role |
+|---|---|---|---|---|
+| **teensy-v3** | `teensy-v3.npz` | 20,449 | 88 | the default — best AMI F1 of the family |
+| teensy-v3-40k | `teensy-v3-40k.npz` | 39,609 | 162 | capacity step |
+| **teensy-v3-80k** | `teensy-v3-80k.npz` | 80,373 | 321 | **family accuracy champion** (best TEN F1/AUC) |
+| teensy-v3-100k | `teensy-v3-100k.npz` | 99,593 | 396 | capacity ceiling — saturating |
+| teensy-v3-qat | `teensy-v3-qat.npz` | 20,449 | **29** | int8 QAT — smallest near-parity artifact |
+
+ONNX exports (float32 + dynamic int8) are provided for the 20k model.
+
+### Accuracy & speed of every variant
+
+![teensy-vad-3 variants vs baselines](chart_v3.png)
+
+Unlike the v1/v2 families (flat 20k→100k on 1M frames), this family's
+10.7M-frame training set lets capacity pay: TEN AUC rises 0.873 (20k)
+→ **0.877 (80k)** before saturating at 100k. Full cross-family story
+in [BENCHMARKS.md](BENCHMARKS.md) (`capacity.png`).
+
 ## Comparison vs Energy / WebRTC / Silero — and capacity scaling
 
 Full protocol, charts and the complete 14-model table live in
