@@ -309,13 +309,17 @@ families at ~40k / ~80k / ~100k parameters (hidden sizes 88/48, 164/88,
 | v1 (1M, construction labels) | 0.911 | 0.909 | 0.910 | 0.910 |
 | v2 (1M, teacher labels) | 0.910 | 0.912 | 0.912 | 0.911 |
 | v3 (10.7M, teacher labels) | 0.911 | 0.916 | **0.917** | 0.916 |
+| **v4 (37.9M = full 100 h)** | 0.914 | 0.918 | 0.920 | **0.921** |
 
-(val F1; v3's TEN AUC peaks at the 80k model, 0.877.) On 1M frames the
-families saturate at ~20k params — bigger nets just overfit slightly. On
-10.7M frames the sweet spot moves to ~80k. Full 14-model comparison
-table (all teensy sizes vs Silero / WebRTC / Energy, with charts):
-`comparison.json`, `hf_assets/*.png`, and the BENCHMARKS.md appendix
-published in the HF repos.
+(val F1.) Real-world TEN AUC peaks at **v4-80k: 0.880** — essentially
+matching FlashVAD's published 0.882 at 2.3× fewer parameters, and the
+best teensy number yet. The v4 family
+(`scripts/prepare_data_v3.py --utts 30000 --npy`, memmap/float16
+plumbing for the 60 GB-scale design matrix) is published as
+[Teensy/teensy-vad-v4](https://huggingface.co/Teensy/teensy-vad-v4) with
+all four sizes + ONNX exports. Full 22-row comparison table:
+`comparison.json`, `hf_assets/*.png`, and the BENCHMARKS.md appendix in
+the HF repos.
 
 
 

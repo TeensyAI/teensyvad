@@ -31,12 +31,12 @@ for r in rows:
         fam = m.split("-")[0]
         FAMILY_OF[m] = fam
 
-COLOR = {"v1": "#7f8c8d", "v2": "#2980b9", "v3": "#27ae60",
+COLOR = {"v1": "#7f8c8d", "v2": "#2980b9", "v3": "#27ae60", "v4": "#d35400",
          "Silero VAD": "#e67e22", "WebRTC VAD": "#8e44ad", "Energy VAD": "#c0392b"}
 
 # ---------------------------------------------------------------- capacity
 fig, ax = plt.subplots(1, 2, figsize=(11, 4))
-for fam in ("v1", "v2", "v3"):
+for fam in ("v1", "v2", "v3", "v4"):
     pts = ([(r["params"], r) for r in rows if r["model"].startswith(fam + "-")]
            + [(20449, [r for r in rows if r["model"] == fam][0])])
     pts.sort(key=lambda t: t[0])
@@ -57,7 +57,7 @@ fig.savefig(OUT / "capacity.png", dpi=130)
 print("→", OUT / "capacity.png")
 
 # ---------------------------------------------------------------- realworld
-base = ["v1", "v2", "v3"]
+base = ["v1", "v2", "v3", "v4"]
 entries = []      # (label, color, ten_auc or None, ami_f1, ami_auc)
 for b in base:
     fam_rows = [r for r in rows if r["model"] == b or r["model"].startswith(b + "-")]

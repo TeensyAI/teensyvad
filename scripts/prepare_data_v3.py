@@ -89,6 +89,9 @@ def main() -> None:
     ap.add_argument("--ami-manual", type=Path, default=Path("data/raw/ami/manual"))
     ap.add_argument("--cache", type=Path, default=Path("data/prepared_v3/wav_cache"))
     ap.add_argument("--seed", type=int, default=17)
+    ap.add_argument("--npy", action="store_true",
+                    help="memmap-friendly output: F.npy (float16) + y.npy + "
+                         "snr.npy + clip_len.npy — required for ~100h sets")
     args = ap.parse_args()
 
     t0 = time.time()
@@ -133,7 +136,8 @@ def main() -> None:
         F = feat(mixed)
         centers = (feat.frame_len / 2 + np.arange(len(F)) * feat.hop_len)
         y = ((centers >= n_lead) & (centers < n_lead + n_sp)).astype(np.float32)
-        Fs.append(F.astype(np.float32))
+        # float16 halves the memory footprint; log-mel precision loss ~1e-3
+        Fs.append(F.astype(np.float16 if args.npy else np.float32))
         ys.append(y)
         clip_len.append(len(F))
         snrs.append(np.full(len(F), snr_val if np.isfinite(snr_val) else 99.0,
@@ -142,6 +146,29 @@ def main() -> None:
         if (i + 1) % 500 == 0:
             print(f"  {i+1}/{len(wavs)}  ({time.time()-t0:.0f}s)")
     print(f"mixtures built: {len(Fs)}")
+
+    if args.npy:
+        # chunked flush into a pre-sized float16 memmap keeps peak RAM low
+        total = int(sum(clip_len))
+        Fm = np.lib.format.open_memmap(args.out / "F.npy", mode="w+",
+                                       dtype=np.float16, shape=(total, 40))
+        ym = np.lib.format.open_memmap(args.out / "y.npy", mode="w+",
+                                       dtype=np.float16, shape=(total,))
+        sm = np.lib.format.open_memmap(args.out / "snr.npy", mode="w+",
+                                       dtype=np.float32, shape=(total,))
+        pos = 0
+        for Fc, yc, sc in zip(Fs, ys, snrs):
+            n = len(Fc)
+            Fm[pos:pos + n] = Fc
+            ym[pos:pos + n] = yc
+            sm[pos:pos + n] = sc
+            pos += n
+        Fm.flush(); ym.flush(); sm.flush()
+        del Fs, ys, snrs
+        np.save(args.out / "clip_len.npy", np.array(clip_len, dtype=np.int64))
+        print(f"saved → {args.out}/*.npy  ({total:,} frames, "
+              f"{time.time()-t0:.0f}s total)")
+        return
 
     F = np.concatenate(Fs)
     np.savez(args.out / "train.npz", F=F, y=np.concatenate(ys),

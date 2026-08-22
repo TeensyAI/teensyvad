@@ -176,7 +176,7 @@ def main() -> None:
 
     lm = LogMel(sr=SR)
 
-    # discover models: float + qat of every family/size (skip int8/ptq dupes)
+    # discover models: float variants of every family (skip int8/ptq dupes)
     if args.models is None:
         paths = []
         for p in sorted(Path("models").glob("teensy-v*.npz")):
@@ -236,7 +236,15 @@ def main() -> None:
     # ---------------- report ----------------
     disp = {"_silero": "Silero VAD", "_energy": "Energy VAD", "_webrtc": "WebRTC VAD"}
     rows = []
-    for name in list(models) + ["_silero", "_webrtc", "_energy"]:
+    # deterministic, readable ordering: families by version, sizes ascending
+    def order_key(name):
+        fam = name.split("-")[0]
+        ver = int(fam[1:]) if fam[1:2].isdigit() else 9   # v1..v4 first, baselines last
+        size_part = name.split("-")[1] if "-" in name else ""
+        size = int(size_part[:-1]) if size_part.endswith("k") and size_part[:-1].isdigit() \
+            else (0 if size_part == "" else 55)           # base=0, -qat=55
+        return (ver, size, name)
+    for name in sorted(list(models) + ["_silero", "_webrtc", "_energy"], key=order_key):
         t = ten.get(name, {}); a = ami.get(name, {}); s = speed.get(name, {})
         sw = ten_swept.get(name, {})
         rows.append(dict(

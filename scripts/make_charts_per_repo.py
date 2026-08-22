@@ -24,7 +24,7 @@ OUT = Path("hf_assets")
 OUT.mkdir(exist_ok=True)
 
 BASE_COLOR = {"Silero VAD": "#e67e22", "WebRTC VAD": "#8e44ad", "Energy VAD": "#c0392b"}
-FAM_COLOR = {"v1": "#7f8c8d", "v2": "#2980b9", "v3": "#27ae60"}
+FAM_COLOR = {"v1": "#7f8c8d", "v2": "#2980b9", "v3": "#27ae60", "v4": "#d35400"}
 
 # named variants per family (display name → comparison.json key)
 VARIANTS = {
@@ -36,6 +36,8 @@ VARIANTS = {
     "v3": [("teensy-v3 (20k)", "v3"), ("teensy-v3-40k", "v3-40k"),
            ("teensy-v3-80k", "v3-80k"), ("teensy-v3-100k", "v3-100k"),
            ("teensy-v3-qat (int8)", "v3-qat")],
+    "v4": [("teensy-v4 (20k)", "v4"), ("teensy-v4-40k", "v4-40k"),
+           ("teensy-v4-80k", "v4-80k"), ("teensy-v4-100k", "v4-100k")],
 }
 BASELINES = ["Silero VAD", "WebRTC VAD", "Energy VAD"]
 
@@ -45,7 +47,7 @@ PANELS = [("TEN VAD set\nAUC", "ten_auc", False),
           ("speed\nµs / 20 ms (log)", "us_per_20ms", True),
           ("size\nKB (log)", "kb", True)]
 
-for fam in ("v1", "v2", "v3"):
+for fam in ("v1", "v2", "v3", "v4"):
     entries = [(name, FAM_COLOR[fam], BY[key]) for name, key in VARIANTS[fam]]
     entries += [(b.replace(" VAD", ""), BASE_COLOR[b], BY[b]) for b in BASELINES]
     fig, ax = plt.subplots(1, 5, figsize=(15.5, 4.0))

@@ -52,6 +52,8 @@ class LazyWindows:
         sel = self._sw[idx]                          # (B, dim, K) gather
         X = np.ascontiguousarray(sel.transpose(0, 2, 1)) \
             .reshape(len(idx), self.K * self.F.shape[1])
+        if X.dtype != np.float32:                    # float16 store → fp32 compute
+            X = X.astype(np.float32)
         return X, self.y[idx + self.K - 1]
 
 
@@ -135,12 +137,19 @@ def main() -> None:
     args = ap.parse_args()
 
     t0 = time.time()
-    # train from the scaled v3 set; val/test stay on the v2 (dev-clean) splits
+    # train from the scaled set; val/test stay on the v2 (dev-clean) splits
     # so model selection is comparable across versions and untouched by
     # train-clean-100 speakers.
-    ztr = np.load(args.data / "train.distill.npz")
+    if (args.data / "F.npy").exists() and (args.data / "yteach.npy").exists():
+        # v4 memmap mode: float16 features + teacher labels on disk
+        Ftr = np.load(args.data / "F.npy", mmap_mode="r")
+        ytr = np.asarray(np.load(args.data / "yteach.npy"), dtype=np.float32)
+        tr = LazyWindows(Ftr, ytr, K)
+        print(f"(memmap mode: F.npy {Ftr.shape} float16)")
+    else:
+        ztr = np.load(args.data / "train.distill.npz")
+        tr = LazyWindows(ztr["F"], ztr["y"], K)
     zva = np.load(Path("data/prepared/val.distill.npz"))
-    tr = LazyWindows(ztr["F"], ztr["y"], K)
     va = LazyWindows(zva["F"], zva["y"], K)
     print(f"train {len(tr):,} windows  val {len(va):,}  "
           f"({time.time()-t0:.0f}s to load)")
@@ -150,11 +159,12 @@ def main() -> None:
 
     if args.stage in ("all", "float"):
         model = MLP(sizes=(K * tr.F.shape[1], *args.hidden, 1), seed=args.seed)
-        model.in_mean = tr.F[:200_000].reshape(-1, tr.F.shape[1]).mean(0)
-        # NOTE: in_mean/in_std are per-dim over the 40-dim frames; the model
-        # input is the 400-dim stacked window, so tile them K times below.
-        mean40 = tr.F[:200_000].mean(0)
-        std40 = np.maximum(tr.F[:200_000].std(0), 1e-3)
+        # input stats from a 1M-frame chunk, float64 accumulation (works
+        # for both float32 arrays and float16 memmaps)
+        chunk = np.asarray(tr.F[:1_000_000], dtype=np.float64)
+        mean40 = chunk.mean(0)
+        std40 = np.maximum(chunk.std(0), 1e-3)
+        del chunk
         model.in_mean = np.tile(mean40, K).astype(np.float32)
         model.in_std = np.tile(std40, K).astype(np.float32)
         # lazy training doesn't auto-fit stats (train() does); we just did.

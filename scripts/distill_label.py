@@ -56,6 +56,49 @@ def teacher_probs(model, torch, x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
 
 def label_split(model, torch, data_dir: Path, split: str, feat: LogMel) -> Path:
+    # v4-style memmap dataset? (clip_len.npy present, audio/ wavs, F.npy)
+    npy_mode = (data_dir / "clip_len.npy").exists() and \
+               (data_dir / "F.npy").exists()
+    if npy_mode:
+        clip_len = np.load(data_dir / "clip_len.npy")
+        assert split == "train", "npy mode currently handles the train split only"
+        wavs = sorted((data_dir / "audio").glob(f"{split}_*.wav"))
+        assert len(wavs) == len(clip_len), \
+            f"{split}: {len(wavs)} wavs vs {len(clip_len)} clips"
+        total = int(clip_len.sum())
+        # teacher outputs → SEPARATE files (construction labels stay in y.npy)
+        ysoft_m = np.lib.format.open_memmap(data_dir / "ysoft.npy", mode="w+",
+                                            dtype=np.float16, shape=(total,))
+        yteach_m = np.lib.format.open_memmap(data_dir / "yteach.npy", mode="w+",
+                                             dtype=np.float16, shape=(total,))
+        pos = 0
+        t0 = time.time()
+        for j, w in enumerate(wavs):
+            x, _ = read_wav(w)
+            n = int(clip_len[j])
+            centers = (feat.frame_len / 2 + np.arange(n) * feat.hop_len) / SR
+            if len(x) >= CHUNK:
+                tp, tt = teacher_probs(model, torch, x)
+                soft = np.interp(centers, tt, tp)
+            else:
+                soft = np.zeros(n, dtype=np.float64)
+            ysoft_m[pos:pos + n] = soft.astype(np.float16)
+            yteach_m[pos:pos + n] = (soft >= TEACHER_THR)
+            pos += n
+            if (j + 1) % 1000 == 0:
+                print(f"  [{split}] {j + 1}/{len(wavs)}  ({time.time()-t0:.0f}s)",
+                      flush=True)
+        ysoft_m.flush(); yteach_m.flush()
+        del ysoft_m, yteach_m
+
+        hard = np.asarray(np.load(data_dir / "yteach.npy") > 0.5)
+        print(f"[{split}] {total:,} frames → ysoft.npy + yteach.npy (memmap)")
+        print(f"  teacher speech: {hard.mean()*100:5.1f}%")
+        y_con = np.load(data_dir / "y.npy", mmap_mode="r")
+        dis = hard != (np.asarray(y_con) > 0.5)
+        print(f"  disagreement vs construction: {dis.mean()*100:5.1f}%")
+        return data_dir / "yteach.npy"
+
     z = np.load(data_dir / f"{split}.npz")
     F, y_con, snr = z["F"], z["y"], z["snr"]
     clip_len = z["clip_len"]
