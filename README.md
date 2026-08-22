@@ -412,6 +412,11 @@ boundary timing, speed ratio).
 | `scripts/prepare_data.py` | mixture construction, SNR, µ-law augmentation |
 | `scripts/train.py` | training loop + threshold calibration |
 | `scripts/train_all.py` | the whole pipeline, one resumable command |
+| `scripts/prepare_data_v3.py` | scaled v3 set: babble + room ambience, −5 dB |
+| `scripts/noise_pools.py` | ESC-50 / babble / AMI-ambience noise builders |
+| `scripts/train_v3.py` | scaled training with lazy context windows |
+| `scripts/eval_realworld.py` | TEN VAD set + AMI meetings, human labels |
+| `scripts/calibrate_realworld.py` | domain thresholds from real audio |
 | `scripts/quantize.py` | int8 + selective quantization w/ sensitivity analysis |
 | `scripts/export_onnx.py` | ONNX float32/int8 export + speed table |
 | `scripts/evaluate.py` | frame + event metrics, baseline comparison |
