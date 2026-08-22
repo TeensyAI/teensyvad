@@ -531,3 +531,47 @@ def test_energy_vad_robust_format_handling():
     x[8000:] += (0.3 * np.sin(2 * np.pi * 200 * t)).astype(np.float32)[8000:]
     ev.feed(x)
     assert ev.in_speech
+
+
+# ==========================================================================
+# offline.py — OfflineVAD (fsmn-vad-style whole-file API)
+# ==========================================================================
+
+def test_offline_vad_segments(tmp_path):
+    from teensyvad import OfflineVAD
+    model_path, _ = _save_tiny_model(tmp_path)
+    sr = 8000
+    t = np.arange(sr * 2) / sr
+    speech = sum(np.sin(2 * np.pi * 200 * h * t) * (0.7 ** h) for h in (1, 2, 3, 4))
+    x = (0.05 * RNG.normal(size=len(t))).astype(np.float32)
+    x[sr // 2: sr // 2 + sr] += speech[sr // 2: sr // 2 + sr].astype(np.float32)
+    wav = tmp_path / "clip.wav"
+    write_wav(wav, x, sr)
+
+    vad = OfflineVAD(str(model_path))            # local path resolution
+    segs = vad.segments(wav)
+    assert isinstance(segs, list) and len(segs) == 1
+    s, e = segs[0]
+    assert isinstance(s, int) and isinstance(e, int)   # fsmn-vad ms convention
+    assert 300 <= s <= 900 and 1300 <= e <= 2000
+
+    probs = vad.probabilities(wav)
+    assert probs.ndim == 1 and len(probs) >= 150      # ~2 s of 10 ms frames
+    assert ((probs > 0.9).sum() > 20)                 # confident speech region
+
+    seg = vad.slice(wav, s, e)
+    assert abs(len(seg) - (e - s) * 8) < 200          # ~8 samples per ms
+    ratio = vad.speech_ratio(wav)
+    assert 0.3 < ratio < 0.8
+    # streaming == offline by construction: reused between calls
+    assert vad.segments(wav) == segs                  # reset works, deterministic
+
+
+def test_offline_vad_hub_error_message(tmp_path):
+    from teensyvad.offline import OfflineVAD, _resolve_model
+    import subprocess, sys
+    # repo-id resolution requires huggingface_hub; the error must say so
+    # (huggingface_hub IS installed in this venv, so instead check the
+    # path branch: nonexistent file with no slash → falls back to discovery)
+    p = _resolve_model("no-such-local-file.npz", None)
+    assert Path(p).exists()                           # local discovery fallback

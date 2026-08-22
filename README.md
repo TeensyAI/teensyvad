@@ -54,43 +54,61 @@ without the data steps.
 ## Quick Start
 
 ```python
-from huggingface_hub import hf_hub_download
-from teensyvad import StreamingVAD                # numpy-only package (this repo)
-from teensyvad.audio import load_wav, float_to_pcm16
+from teensyvad import OfflineVAD
 
-model_path = hf_hub_download("Teensy/teensy-vad-v4", "teensy-v4-80k.npz")
-vad = StreamingVAD(model_path)                    # 8 kHz PCM16 in → events out
-
-# --- file mode: speech segments in milliseconds --------------------------
-pcm = float_to_pcm16(load_wav("long_audio.wav", sr=8000))   # any rate → 8k
-events = []
-for i in range(0, len(pcm), 1600):                # 100 ms chunks (any size ok)
-    events += vad.feed(pcm[i:i+1600])
-events += vad.flush()                             # close a trailing segment
-segments_ms = [[int(a.t * 1000), int(b.t * 1000)]
-               for a, b in zip(events[::2], events[1::2])]
-print(segments_ms)        # [[start_ms, end_ms], ...] e.g. [[90, 5150]]
+# Standalone VAD — auto-downloads from the Hugging Face Hub on first use
+model = OfflineVAD("Teensy/teensy-vad-v4")
+result = model.segments("long_audio.wav")
+# Returns speech segments: [[start_ms, end_ms], [start_ms, end_ms], ...]
+print(result)                    # e.g. [[90, 5150]] — the fsmn-vad convention
 ```
 
-## Use in a streaming / ASR pipeline
+(`teensyvad` is the numpy-only package in this repo — `pip install numpy`
+is the only dependency; `pip install huggingface_hub` enables the
+auto-download above, or pass a local `.npz` path directly.  A specific
+variant: `OfflineVAD("Teensy/teensy-vad-v4", model_file="teensy-v4-80k.npz")`.)
+
+## Use as Part of an ASR Pipeline
 
 ```python
-# live audio: chunk-in → event-out (this is the Asterisk AudioSocket loop)
-for frame in phone_frames:                        # 20 ms PCM16LE @ 8 kHz
-    for ev in vad.feed(frame):                    # any chunk size
-        print(f"{ev.t:7.2f}s  {ev.type}")         # speech_start / speech_end
-print(f"talk time: {vad.speech_seconds:.1f}s")
+from teensyvad import OfflineVAD
+from teensyvad.audio import write_wav
 
-# gate transcription / ASR on the events: start recording on
-# speech_start, cut after speech_end + your favourite padding — see
-# scripts/audiosocket_server.py for a working telephony server.
+# VAD first: segment long audio so the ASR only ever sees speech
+vad = OfflineVAD("Teensy/teensy-vad-v4")
+segments = vad.segments("meeting_2hours.wav")     # [[start_ms, end_ms], ...]
+
+for i, (start_ms, end_ms) in enumerate(segments):
+    seg = vad.slice("meeting_2hours.wav", start_ms, end_ms)   # float32 @ 8 kHz
+    write_wav(f"speech_{i}.wav", seg, 8000)                   # feed to your ASR
+    # text = my_asr.transcribe(f"speech_{i}.wav")   # <- your ASR here
 ```
 
-Notes: `feed()` accepts bytes (PCM16 little-endian) or float arrays;
-thresholds ship inside the model file (domain profiles for v3/v4 —
-`close_mic` default, `distant_room` in metadata).  Pure numpy, zero
-runtime dependencies beyond it; ONNX exports in each HF repo for
-non-Python or throughput use.
+Notes: audio is native **8 kHz** (telephony band — PSTN/G.711/slin), so
+for a 16 kHz ASR resample the slices (or load the original file at the
+ASR's rate and slice by `start_ms`/`end_ms`).  Per-frame probabilities
+for custom thresholds: `vad.probabilities(wav)`; talk-time ratio:
+`vad.speech_ratio(wav)`.
+
+## Streaming / telephony (Asterisk)
+
+```python
+from teensyvad import StreamingVAD
+
+vad = StreamingVAD("models/teensy-v4.npz")        # or any HF-downloaded .npz
+for frame in phone_frames:                        # 20 ms PCM16LE @ 8 kHz
+    for ev in vad.feed(frame):                    # any chunk size, bytes or float
+        print(f"{ev.t:7.2f}s  {ev.type}")         # speech_start / speech_end
+events = vad.flush()                              # close at hangup/EOF
+print(f"talk time: {vad.speech_seconds:.1f}s")
+```
+
+Offline and streaming decisions are identical by construction —
+`OfflineVAD` is the streaming engine fed whole files.  Thresholds ship
+inside each model file (domain profiles for v3/v4: `close_mic` default,
+`distant_room` in metadata); ONNX exports live in each HF repo for
+non-Python or throughput use.  A working Asterisk AudioSocket server:
+`scripts/audiosocket_server.py`.
 
 ## Measured quality (test set: unseen speakers, unseen noise types)
 

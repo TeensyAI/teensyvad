@@ -66,29 +66,39 @@ this repository.
 ## Quick Start
 
 ```python
-from huggingface_hub import hf_hub_download
-from teensyvad import StreamingVAD                # numpy-only package
-from teensyvad.audio import load_wav, float_to_pcm16
+from teensyvad import OfflineVAD
 
-model_path = hf_hub_download("Teensy/teensy-vad-v4", "teensy-v4-80k.npz")
-vad = StreamingVAD(model_path)                    # 8 kHz PCM16 in → events out
-
-pcm = float_to_pcm16(load_wav("long_audio.wav", sr=8000))   # any rate → 8k
-events = []
-for i in range(0, len(pcm), 1600):                # 100 ms chunks (any size ok)
-    events += vad.feed(pcm[i:i+1600])
-events += vad.flush()                             # close a trailing segment
-segments_ms = [[int(a.t * 1000), int(b.t * 1000)]
-               for a, b in zip(events[::2], events[1::2])]
-print(segments_ms)        # [[start_ms, end_ms], ...]
+# Standalone VAD — auto-downloads from the Hub (pip install huggingface_hub)
+model = OfflineVAD("Teensy/teensy-vad-v4")
+result = model.segments("long_audio.wav")
+# Returns speech segments: [[start_ms, end_ms], [start_ms, end_ms], ...]
+print(result)                    # e.g. [[90, 5150]] — the fsmn-vad convention
 ```
 
-Streaming / telephony (the Asterisk AudioSocket loop): feed 20 ms
-PCM16LE frames — `for ev in vad.feed(frame): ...` emits
-`speech_start` / `speech_end` with timestamps. Domain threshold
-profiles ship in the metadata (`close_mic` default, `distant_room`).
-The `teensyvad` package is pure numpy; the exact feature spec lives in
-[teensy-vad-1's card](https://huggingface.co/Teensy/teensy-vad-1).
+Variant selection: `OfflineVAD("Teensy/teensy-vad-v4", model_file="teensy-v4-80k.npz")`
+(see the variant table below).  Local use without the hub: pass a
+`.npz` path.  `teensyvad` is pure numpy (single package dir in the
+project repo) — the only dependency.
+
+## Use as Part of an ASR Pipeline
+
+```python
+from teensyvad import OfflineVAD
+from teensyvad.audio import write_wav
+
+vad = OfflineVAD("Teensy/teensy-vad-v4")
+segments = vad.segments("meeting_2hours.wav")     # [[start_ms, end_ms], ...]
+
+for i, (start_ms, end_ms) in enumerate(segments):
+    seg = vad.slice("meeting_2hours.wav", start_ms, end_ms)  # float32 @ 8 kHz
+    write_wav(f"speech_{i}.wav", seg, 8000)
+    # text = my_asr.transcribe(f"speech_{i}.wav")  # <- your ASR here
+```
+
+Streaming / telephony (Asterisk AudioSocket): `from teensyvad import
+StreamingVAD` — feed 20 ms PCM16LE frames, get `speech_start` /
+`speech_end` events, `vad.speech_seconds` for talk time; a working
+server ships as `scripts/audiosocket_server.py` in the project repo.
 
 ## Why 100 hours
 

@@ -9,12 +9,14 @@ The point of this package is that nothing is hidden:
     * :mod:`teensyvad.model`    — a 3-layer MLP with hand-written backprop
     * :mod:`teensyvad.streaming`— real-time chunk-in / event-out VAD
     * :mod:`teensyvad.energy_vad`— grandpa's energy baseline, for comparison
+    * :mod:`teensyvad.offline`  — whole-file VAD, fsmn-vad-style segments
 """
 
 from .audio import DEFAULT_SR
 from .energy_vad import EnergyVAD
 from .model import MLP
 from .quant import QuantizedMLP, load_any
+from .offline import OfflineVAD
 from .streaming import StreamingVAD
 
 __version__ = "0.2.0"
@@ -24,6 +26,7 @@ __all__ = [
     "EnergyVAD",
     "MLP",
     "QuantizedMLP",
+    "OfflineVAD",
     "StreamingVAD",
     "load_any",
     "__version__",
