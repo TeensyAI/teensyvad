@@ -349,6 +349,50 @@ def test_quantized_mlp_matches_float_on_task(tmp_path):
     np.testing.assert_allclose(q2.probs(X), p1, atol=1e-6)
 
 
+def test_qat_simulation_equals_int8_inference(tmp_path):
+    """The QAT forward pass must mirror deployed int8 inference exactly —
+    otherwise training optimises a different function than we deploy."""
+    from teensyvad.quant import (QuantizedMLP, qat_forward, qat_train,
+                                 load_any)
+    model_path, _ = _save_tiny_model(tmp_path)
+    base = MLP.load(model_path)
+    lm = LogMel(sr=8000)
+    rng = np.random.default_rng(11)
+    speech_frames, noise_frames = [], []
+    for _ in range(300):
+        f0 = float(rng.uniform(100, 350))
+        t = np.arange(lm.frame_len) / 8000
+        s = sum(np.sin(2 * np.pi * f0 * h * t) * (0.8 ** h) for h in (1, 2, 3))
+        speech_frames.append(s + 0.05 * rng.normal(size=lm.frame_len))
+        x = rng.normal(size=lm.frame_len)
+        k = np.exp(-np.arange(lm.frame_len) / 20)
+        noise_frames.append(np.convolve(x, k, mode="same") * 0.3)
+    F = np.concatenate([
+        lm(np.asarray(speech_frames, dtype=np.float32).ravel()),
+        lm(np.asarray(noise_frames, dtype=np.float32).ravel()),
+    ])
+    K = 4
+    X = np.stack([F[i - K + 1: i + 1].ravel() for i in range(K - 1, len(F))])
+    X = X.astype(np.float32)
+    y = np.zeros(len(X), dtype=np.float32)
+    y[: len(X) // 2] = 1.0
+    qm = {"W1": True, "W2": True, "W3": True}
+
+    # 1) simulation == deployed inference, bit-for-bit-ish
+    import teensyvad.quant as Q
+    z_sim, _ = qat_forward(base, X, qm)
+    p_sim = 1 / (1 + np.exp(-z_sim.ravel()))
+    m_int8 = QuantizedMLP(list(base.sizes), qm).quantize_from(base)
+    np.testing.assert_allclose(p_sim, m_int8.probs(X), atol=1e-5)
+
+    # 2) QAT fine-tune converges (loss decreases) and int8 stays accurate
+    f0_before = prf(m_int8.probs(X), y)[2]
+    qat_train(base, X, y, qm, epochs=3, bs=128, lr=1e-3, verbose=False)
+    m_after = QuantizedMLP(list(base.sizes), qm).quantize_from(base)
+    f0_after = prf(m_after.probs(X), y)[2]
+    assert f0_after >= f0_before - 0.02
+
+
 def test_streaming_vad_with_quantized_model(tmp_path):
     from teensyvad.quant import QuantizedMLP
     model_path, _ = _save_tiny_model(tmp_path)

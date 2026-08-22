@@ -160,3 +160,104 @@ def load_any(path: str | Path) -> MLP:
 
 def int8_bytes(m: QuantizedMLP) -> int:
     return int(sum(q.nbytes for q in m.Wq.values()))
+
+
+# --------------------------------------------------------------------------
+# Quantization-aware training (QAT)
+# --------------------------------------------------------------------------
+# PTQ trains in float32 and rounds afterwards; QAT makes the *training*
+# forward pass pretend to be int8 (fake-quantize weights AND activations
+# with freshly estimated scales each step).  Gradients flow through the
+# quantizer via the straight-through estimator: the backward pass uses the
+# quantized values as if quantization were the identity.  The float master
+# weights keep being updated by Adam, but every gradient is computed at a
+# point the deployed int8 model can actually represent — so nothing is
+# "surprised" by rounding at export time.
+
+def fake_quant_weight(W: np.ndarray) -> np.ndarray:
+    """W → round-to-grid → back to float (trainable simulation)."""
+    q, s = quantize_weight(W)
+    return q.astype(np.float32) * s
+
+
+def fake_quant_rows(x: np.ndarray) -> np.ndarray:
+    """Dynamic per-row activation simulation → float."""
+    q, s = quantize_rows(x)
+    return q.astype(np.float32) * s[:, None]
+
+
+def qat_forward(m: MLP, x: np.ndarray, qmask: dict[str, bool]):
+    """Forward that mirrors QuantizedMLP.logits exactly (fake-quant).
+    Returns (logits, cache) where cache holds the tensors the backward
+    pass needs — already at their quantized operating points."""
+    x = m._norm(np.asarray(x, dtype=np.float32))
+    cache = {}
+    h = x
+    for i in (1, 2, 3):
+        Wk, bk = f"W{i}", f"b{i}"
+        W = fake_quant_weight(m.p[Wk]) if qmask.get(Wk) else m.p[Wk]
+        hin = fake_quant_rows(h) if qmask.get(Wk) else h
+        pre = hin @ W + m.p[bk]
+        act = np.maximum(pre, 0.0) if i < 3 else pre
+        cache[f"h{i-1}_in"] = hin          # input actually used
+        cache[f"W{i}"] = W                  # weight actually used
+        cache[f"h{i}"] = act                # post-activation
+        h = act
+    return h, cache
+
+
+def qat_loss_and_grads(m: MLP, x: np.ndarray, y: np.ndarray, qmask: dict[str, bool]):
+    """BCE loss + STE gradients for one batch (mirrors loss_and_grads)."""
+    from .model import bce_with_logits, _sigmoid
+
+    z, c = qat_forward(m, x, qmask)
+    p = _sigmoid(z)
+    n = len(y)
+    dz = (p - y.reshape(-1, 1).astype(np.float32)) / n     # dL/dlogit
+
+    grads = {}
+    dh = dz
+    for i in (3, 2, 1):
+        hin = c[f"h{i-1}_in"]
+        W = c[f"W{i}"]
+        grads[f"W{i}"] = hin.T @ dh                         # at quantised point
+        grads[f"b{i}"] = dh.sum(axis=0)
+        if i > 1:
+            dh_prev = dh @ W.T                              # STE: through identity
+            dh_prev[c[f"h{i-1}"] <= 0] = 0.0                # ReLU gate
+            dh = dh_prev
+    return bce_with_logits(z, y), grads
+
+
+def qat_train(m: MLP, X: np.ndarray, y: np.ndarray, qmask: dict[str, bool],
+              Xval=None, yval=None, *, epochs: int = 20, bs: int = 1024,
+              lr: float = 1e-3, seed: int = 0, verbose: bool = True):
+    """Fine-tune `m` (usually a converged float model) under int8 simulation."""
+    from .model import Adam, prf
+
+    X = np.asarray(X, dtype=np.float32)
+    y = np.asarray(y, dtype=np.float32)
+    rng = np.random.default_rng(seed)
+    opt = Adam(m.p, lr=lr)
+    best = {"f1": -1.0, "params": {k: v.copy() for k, v in m.p.items()}}
+    for ep in range(1, epochs + 1):
+        idx = rng.permutation(len(X))
+        losses = []
+        for s in range(0, len(idx), bs):
+            b = idx[s:s + bs]
+            loss, grads = qat_loss_and_grads(m, X[b], y[b], qmask)
+            opt.step(m.p, grads)
+            losses.append(loss)
+        msg = f"qat epoch {ep:3d}  loss {float(np.mean(losses)):.4f}"
+        if Xval is not None:
+            pv = QuantizedMLP(list(m.sizes), qmask).quantize_from(m).probs(Xval)
+            f1 = prf(pv, yval)[2]
+            msg += f"  int8-val F1 {f1:.4f}"
+            if f1 > best["f1"]:
+                best = {"f1": f1, "params": {k: v.copy() for k, v in m.p.items()}}
+        if verbose:
+            print(msg, flush=True)
+    if Xval is not None:                                    # restore best
+        for k, v in best["params"].items():
+            m.p[k] = v
+    return m

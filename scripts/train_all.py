@@ -166,6 +166,17 @@ def stage_quantize():
     sh([PY, "scripts/quantize.py", "--model", str(src)])
 
 
+def stage_qat():
+    """PTQ vs QAT vs wide bake-off (also produces the -qat and wide models)."""
+    if not have(PREP / "train.distill.npz"):
+        print("skip qat (needs distilled labels)")
+        return
+    if have(MODELS / "teensy-v2-qat.npz"):
+        print("skip qat")
+        return
+    sh([PY, "scripts/qat_bakeoff.py"])
+
+
 def stage_export():
     try:
         import onnx  # noqa: F401
@@ -190,7 +201,7 @@ def stage_tests():
 STAGES = {n.replace("stage_", "").replace("_", "-"): f for n, f in
           sorted(globals().items()) if n.startswith("stage_")}
 ORDER = ["download", "extract", "prepare", "distill", "train-v1", "train-v2",
-         "calibrate", "evaluate", "quantize", "export", "tests"]
+         "calibrate", "evaluate", "quantize", "qat", "export", "tests"]
 
 
 def main() -> None:

@@ -220,12 +220,53 @@ Honest numbers (M2 Pro, measured, not promised):
 | ONNX float32 | 6.6 µs | 0.09 µs | 80.2 KB | matches numpy to 3e-6 |
 | ONNX int8 | 7.5 µs | **0.067 µs** | **22.3 KB** | real int8 kernels |
 
-Reading: in pure numpy, int8 is a **size** play, not a speed play
-(numpy `int8 @ int8` even overflows — see `quant.py`, we force int32
-accumulation). For a 20k-param model that's fine: even the "slow" path
-is hundreds× real-time, and the 28 KB npz drops into StreamingVAD
-unchanged (`load_any` picks the right loader). When speed is the goal,
-ONNX int8 is fastest batched and the file is 22 KB.
+(Trap documented in `quant.py`: numpy `int8 @ int8` **silently
+overflows** — it accumulates in int8 and wraps; we force int32
+accumulation. Never trust an untested quantized matmul.)
+
+## PTQ vs QAT vs "train wide, quantize down" — the bake-off
+
+`scripts/qat_bakeoff.py` (also the `qat` stage of `train_all.py`) trains
+all three schools and measures them on the same test split (labels =
+Silero teacher):
+
+* **PTQ** — train float32, round to int8 afterwards ("train high, quantize later")
+* **QAT** — fine-tune the float model with int8 *simulated in the forward
+  pass* (fake-quant weights + activations, straight-through-estimator
+  gradients — see `qat_forward`/`qat_train` in `teensyvad/quant.py`;
+  a unit test pins simulation ≡ deployed inference)
+* **wide** — 2× the hidden width (43k params), then quantized down
+
+| model | params | KB | F1 | AUC | µs single | µs/1k batch |
+|---|---|---|---|---|---|---|
+| v2-float | 20,449 | 86.6 | 0.8442 | 0.9229 | **14.1** | **0.27** |
+| v2-ptq | 20,449 | 28.2 | 0.8445 | 0.9229 | 44.0 | 4.57 |
+| **v2-qat** | 20,449 | **28.2** | 0.8538 | **0.9235** | 43.6 | 4.60 |
+| wide-float | 43,201 | 175.5 | 0.8511 | 0.9226 | 14.3 | 0.32 |
+| wide-ptq | 43,201 | 50.9 | 0.8513 | 0.9226 | 49.1 | 7.69 |
+| **wide-qat** | 43,201 | 50.9 | **0.8565** | 0.9233 | 49.1 | 7.58 |
+
+Takeaways, honestly stated:
+
+1. **QAT > PTQ at identical size** — +0.9 F1 points for v2, +0.5 for
+   wide. Weights that trained *on* the int8 grid beat weights rounded
+   onto it after the fact.
+2. **v2-qat even edges v2-float on F1** — but AUC (threshold-free) is
+   nearly identical (0.9235 vs 0.9229), so most of that F1 edge is
+   probability sharpening at the operating threshold, plus the 12 extra
+   fine-tuning epochs acting as regularization. The proven QAT win is
+   over PTQ, not over float32.
+3. **Capacity saturates** — wide buys little (the ceiling is data/labels,
+   not parameters), though under quantization wide-qat is the accuracy
+   winner (0.8565 at 50.9 KB — more accurate than v2-float in a smaller
+   file).
+4. Speed in numpy unchanged by QAT (same int8 path); float32 BLAS still
+   wins single-frame latency; ONNX int8 remains the batched champion.
+
+**Recommendations**: `teensy-v2-qat.npz` (28 KB) as the smallest accurate
+artifact for embedding; `teensy-v2-wide-qat.npz` (51 KB) when accuracy is
+paramount; ONNX int8 for throughput; float32 numpy for readability.
+
 
 
 
