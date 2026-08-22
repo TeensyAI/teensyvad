@@ -177,6 +177,46 @@ def stage_qat():
     sh([PY, "scripts/qat_bakeoff.py"])
 
 
+def stage_v3():
+    """Scaled training: train-clean-100 + babble + AMI ambience noise."""
+    libri100 = RAW / "LibriSpeech" / "train-clean-100"
+    if not libri100.exists():
+        print("skip v3 (train-clean-100 not extracted — run download/extract)")
+        return
+    if not have(Path("data/prepared_v3/train.distill.npz")):
+        sh([PY, "scripts/prepare_data_v3.py", "--utts", "8000"])
+        sh([PY, "scripts/distill_label.py", "--data", "data/prepared_v3",
+            "--splits", "train"])
+    if not have(MODELS / "teensy-v3.npz"):
+        sh([PY, "scripts/train_v3.py"])
+
+
+def stage_calibrate_real():
+    """Real-audio operating points (AMI dev meetings) for v2/v3 models."""
+    for name in ("teensy-v3.npz", "teensy-v3-qat.npz", "teensy-v2.npz"):
+        p = MODELS / name
+        if not have(p):
+            continue
+        meta = subprocess.run([PY, "-c",
+                               f"import numpy as np;print(np.load('{p}')['meta'])"],
+                              capture_output=True, text=True, cwd=ROOT).stdout
+        if "calibrated_on" in meta:
+            print(f"skip calibrate-real {name}")
+            continue
+        sh([PY, "scripts/calibrate_realworld.py", "--model", str(p)])
+
+
+def stage_realworld():
+    """Human-labelled real recordings: TEN VAD set + AMI SDM meetings."""
+    if not have(RAW / "ten-vad" / "testset"):
+        sh(["git", "clone", "-q", "--depth", "1",
+            "https://github.com/TEN-framework/ten-vad.git", str(RAW / "ten-vad")])
+    sh([PY, "scripts/eval_realworld.py", "--ami", "--models",
+        str(MODELS / "teensy-v1.npz"), str(MODELS / "teensy-v2.npz"),
+        str(MODELS / "teensy-v2-qat.npz"), str(MODELS / "teensy-v3.npz"),
+        str(MODELS / "teensy-v3-qat.npz")])
+
+
 def stage_export():
     try:
         import onnx  # noqa: F401
@@ -201,7 +241,8 @@ def stage_tests():
 STAGES = {n.replace("stage_", "").replace("_", "-"): f for n, f in
           sorted(globals().items()) if n.startswith("stage_")}
 ORDER = ["download", "extract", "prepare", "distill", "train-v1", "train-v2",
-         "calibrate", "evaluate", "quantize", "qat", "export", "tests"]
+         "calibrate", "evaluate", "quantize", "qat", "v3", "calibrate-real",
+         "realworld", "export", "tests"]
 
 
 def main() -> None:

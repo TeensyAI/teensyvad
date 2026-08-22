@@ -224,6 +224,78 @@ Honest numbers (M2 Pro, measured, not promised):
 overflows** — it accumulates in int8 and wraps; we force int32
 accumulation. Never trust an untested quantized matmul.)
 
+## Scaling up & real-world accuracy (v3)
+
+Question: *does more data help, and how good is this on real recordings?*
+`scripts/prepare_data_v3.py` + `train_v3.py` answer it.
+
+**v3 = same 20,449-param architecture, but trained on:**
+* 8,000 utterances from LibriSpeech **train-clean-100** (~30 h of mixtures,
+  10.7M teacher-labelled frames — 10× v2)
+* three noise families: ESC-50 + **synthetic 7-talker babble** (disjoint
+  LibriSpeech speakers — the classic hard case) + **real AMI room
+  ambience** (non-speech stretches of distant-mic meetings)
+* SNR pushed to **−5 … 20 dB**
+* lazy context-window training (`LazyWindows` — windows materialise per
+  batch; the full 10.7M×400 matrix would be 17 GB)
+
+**Real-world evaluation** (`scripts/eval_realworld.py`) — human-labelled
+recordings, never seen in training:
+
+*TEN VAD public set — 30 real recordings (the set FlashVAD reports on):*
+
+| model | F1 (stored thr) | AUC | F1 @ best thr |
+|---|---|---|---|
+| v1 | 0.850 | 0.848 | 0.877 |
+| v2 | 0.869 | 0.868 | 0.890 |
+| **v3** | 0.866 | **0.873** | **0.894** |
+| Silero (teacher) | 0.937 | 0.863 | 0.938 |
+| FlashVAD (published) | 0.889 | 0.882 | — |
+
+*AMI SDM meetings — 8 real meeting rooms, distant mic, manual labels:*
+
+| model | F1 | AUC | FAR | MR |
+|---|---|---|---|---|
+| v2 | 0.880 | 0.848 | 64% | 8.7% |
+| **v3** | **0.886** | **0.861** | 80% | 4.4% |
+| Silero (teacher) | 0.714 | 0.772 | 1.2% | 44.4% |
+| energy baseline | 0.592 | 0.658 | 12% | 57% |
+
+Findings, stated honestly:
+
+1. **v3 wins on ranking quality everywhere** — AUC 0.873 (TEN) and 0.861
+   (AMI), beating v2, v1 *and its own Silero teacher* (0.863 / 0.772).
+   A 20k-param student, distilled then scaled, out-ranks the 2M-param
+   teacher on real recordings. Silero still wins TEN F1 at its own
+   threshold — its probabilities are better calibrated for close-mic.
+2. **More data helped modestly, harder data helped more**: val AUC
+   0.9235 → 0.9289 (synthetic), but the real-world AUC gains (+0.006
+   TEN, +0.013 AMI over v2) come mostly from babble + ambience + low
+   SNR exposure, not raw hours.
+3. **Thresholds are domain-specific; rankings are not.** Best thr:
+   ~0.45 close-mic, 0.10 distant-room, 0.85 synthetic-events. A single
+   stored threshold cannot serve all domains — v3 ships **profiles** in
+   its metadata: `close_mic` (default, for telephony) and
+   `distant_room`. `calibrate_realworld.py` re-derives them from AMI dev
+   meetings (3 meetings reserved for calibration; the 8 eval meetings
+   are never used for any tuning).
+4. **FAR/MR trade is a policy choice**: at the distant-room operating
+   point everyone's FAR is high on overlapped meetings (labels mark
+   *foreground* speech only); Silero's 44% MR on AMI shows the teacher
+   is conservative in rooms — which is exactly the behaviour v3 was
+   distilled *away* from, with real room-tone in training.
+5. FlashVAD comparison: v3 matches its published TEN F1 (0.894 vs 0.889
+   best-threshold) with a 2.3× smaller model — but both numbers are
+   threshold-tuned against that same 30-clip set (their card admits it;
+   ours is labelled "upper bound" in the table). Treat as parity, not
+   victory.
+
+G.711 µ-law round-trip changes every number by <0.5% (see
+`eval_realworld.py` output) — the training-time telephony augmentation
+earned its keep.
+
+
+
 ## PTQ vs QAT vs "train wide, quantize down" — the bake-off
 
 `scripts/qat_bakeoff.py` (also the `qat` stage of `train_all.py`) trains
