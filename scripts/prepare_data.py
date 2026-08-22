@@ -198,7 +198,7 @@ def build_example(rng, speech: np.ndarray, noise_pool, sr: int, feat: LogMel):
 
 def build_split(name: str, utts: list[Path], noise_pool_paths: list[Path],
                 out_dir: Path, cache: Path, feat: LogMel, rng,
-                max_utts: int, save_demo: int = 0):
+                max_utts: int, save_demo: int = 0, save_all: bool = False):
     log(f"[{name}] {len(utts)} utterances available, using {min(len(utts), max_utts)}")
     utts = utts[:max_utts]
     wavs = mass_convert(utts, cache / "speech")
@@ -209,6 +209,7 @@ def build_split(name: str, utts: list[Path], noise_pool_paths: list[Path],
         f"({sum(len(n) for n in noise_pool)/feat.sr/60:.1f} min)")
 
     Fs, ys, snrs = [], [], []
+    mixed_clips: list[np.ndarray] = []        # kept when save_all
     demo_dir = out_dir / "demo"
     for i, w in enumerate(wavs):
         speech, _ = read_wav(w)
@@ -221,6 +222,8 @@ def build_split(name: str, utts: list[Path], noise_pool_paths: list[Path],
         Fs.append(F.astype(np.float32))
         ys.append(y)
         snrs.append(s)
+        if save_all:
+            mixed_clips.append(mixed)
         if i < save_demo:
             demo_dir.mkdir(parents=True, exist_ok=True)
             write_wav(demo_dir / f"{name}_{i:02d}.wav", mixed, feat.sr)
@@ -236,10 +239,21 @@ def build_split(name: str, utts: list[Path], noise_pool_paths: list[Path],
         Fs.append(F.astype(np.float32))
         ys.append(np.zeros(len(F), dtype=np.float32))
         snrs.append(np.full(len(F), -1.0, dtype=np.float32))  # marker: noise-only
+        if save_all:
+            mixed_clips.append(x.astype(np.float32))
+
+    if save_all:
+        audio_dir = out_dir / "audio"
+        audio_dir.mkdir(parents=True, exist_ok=True)
+        for j, mx in enumerate(mixed_clips):
+            write_wav(audio_dir / f"{name}_{j:05d}.wav", mx, feat.sr)
 
     F = np.concatenate(Fs); y = np.concatenate(ys); s = np.concatenate(snrs)
     p = out_dir / f"{name}.npz"
-    np.savez(p, F=F, y=y, snr=s)
+    extras = {}
+    if save_all:
+        extras["clip_len"] = np.array([len(f) for f in Fs], dtype=np.int64)
+    np.savez(p, F=F, y=y, snr=s, **extras)
     pos = y.mean() * 100
     log(f"[{name}] saved {p.name}: {len(y)} frames, {pos:.1f} % speech, "
         f"{len(F)/1e6:.2f}M×{F.shape[1]} feats")
@@ -258,6 +272,8 @@ def main() -> None:
     ap.add_argument("--val", type=int, default=200)
     ap.add_argument("--test", type=int, default=300)
     ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--save-audio", action="store_true",
+                    help="also write each mixture wav (needed for distillation)")
     args = ap.parse_args()
 
     feat = LogMel(sr=8000)
@@ -278,11 +294,14 @@ def main() -> None:
     rng3.shuffle(tst)
 
     build_split("train", tr_utts, load_esc50(meta, audio, "train"),
-                args.out, args.cache, feat, np.random.default_rng(100), args.train)
+                args.out, args.cache, feat, np.random.default_rng(100), args.train,
+                save_all=args.save_audio)
     build_split("val", va_utts, load_esc50(meta, audio, "val"),
-                args.out, args.cache, feat, np.random.default_rng(200), args.val, save_demo=2)
+                args.out, args.cache, feat, np.random.default_rng(200), args.val, save_demo=2,
+                save_all=args.save_audio)
     build_split("test", tst, load_esc50(meta, audio, "test"),
-                args.out, args.cache, feat, np.random.default_rng(300), args.test, save_demo=3)
+                args.out, args.cache, feat, np.random.default_rng(300), args.test, save_demo=3,
+                save_all=args.save_audio)
     log("done.")
 
 

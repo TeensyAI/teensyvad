@@ -267,6 +267,21 @@ def test_hysteresis_events_helper():
     assert any(k == "speech_end" and i == 10 for k, i in kinds)
 
 
+def test_streaming_flush_closes_open_segment(tmp_path):
+    model_path, _ = _save_tiny_model(tmp_path)
+    vad = StreamingVAD(model_path)
+    t = np.arange(8000) / 8000
+    buzz = float_to_pcm16(0.5 * np.sin(2 * np.pi * 180 * t))
+    events = vad.feed(buzz)
+    assert vad.in_speech
+    assert not any(e.type == "speech_end" for e in events)
+    flushed = vad.flush()
+    assert len(flushed) == 1 and flushed[0].type == "speech_end"
+    assert flushed[0].t > 0.5
+    assert not vad.in_speech
+    assert vad.flush() == []                    # idempotent
+
+
 def _save_tiny_model(tmp_path, context=4):
     """Train a micro-model on synthetic 'speech vs noise' and save it.
 

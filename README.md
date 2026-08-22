@@ -174,7 +174,65 @@ Asterisk ≥ 16 you can also keep audio out of the dialplan entirely and
 let this server be the consumer; for media *manipulation* (vs analysis)
 you'd add a `TRACE`/ARI path — ask and we'll build it.
 
-## Repository map
+## Distillation: teensyvad 2.0 from Silero (teacher → student)
+
+Construction labels know *where the utterance was placed*, but not where
+speech actually starts and stops inside it — LibriSpeech utterances
+contain internal pauses, breathy tails and lead-in silence that we were
+labelling "speech". **Knowledge distillation** fixes that: a strong
+teacher (Silero VAD) relabels our mixtures, and the same 20k-param
+student learns from *its* frame probabilities.
+
+```
+.venv/bin/pip install silero-vad onnxruntime        # teacher, labeling only
+.venv/bin/python scripts/prepare_data.py --save-audio  # mixtures + wavs
+.venv/bin/python scripts/distill_label.py              # teacher → soft labels
+.venv/bin/python scripts/train.py --data-suffix .distill --ycol ysoft \
+    --out models/teensy-v2-soft.npz                   # soft-target student
+.venv/bin/python scripts/train.py --data-suffix .distill --ycol y \
+    --out models/teensy-v2.npz                        # hard-target student
+.venv/bin/python scripts/calibrate_events.py --model models/teensy-v2.npz
+```
+
+**What the teacher revealed about our labels**: on the test split the
+teacher disagreed with construction labels on 11.6% of frames — 9.2%
+"construction says speech, teacher silent" (the pauses/tails we
+suspected) and 2.4% the other way (teacher hears voice where we placed
+'noise'). That 9.2% was silent label contamination capping v1.
+
+**Results (test set, 100 streamed clips)**:
+
+| | v1 (construction) | v2 (distilled, hard) | v2-soft |
+|---|---|---|---|
+| frame F1 vs teacher | 0.893 | **0.905** | 0.906 |
+| onset Δ vs teacher | −432 ms | **−172 ms** | −300 ms |
+| offset Δ vs teacher | +718 ms | **+478 ms** | +554 ms |
+| events vs construction truth | 0.976 | 0.877 | 0.901 |
+
+Read the last row carefully — it looks backwards but isn't: v1 scores
+highest against construction truth *because it was trained on that very
+truth*, padded pauses included (it fires 432 ms early and releases
+718 ms late). The distilled students track where speech actually is,
+per an independent strong model. For telephony — barge-in latency,
+silence-triggered stop — **boundaries are the product**, so
+`teensy-v2.npz` (hard targets, tightest boundaries) is the default.
+
+Two honest caveats:
+* **No speed win here**: torch-JIT Silero ≈1.15× faster than our numpy
+  student on an M2. Distillation bought *knowledge*, not speed — both
+  run ~300× real time, and a compiled (ONNX) student would flip the
+  ratio if you ever care.
+* A student cannot exceed its teacher's idea of speech; Silero's own
+  biases (e.g. skeptical of sung/tone-like audio) are inherited.
+  Distillation is also how FlashVAD was labelled — this section is a
+  map of that decision's consequences.
+
+New scripts: `distill_label.py` (teacher labeling + disagreement
+report), `calibrate_events.py` (event-level threshold sweep, written
+back into the model metadata), `evaluate_distill.py` (agreement,
+boundary timing, speed ratio).
+
+
 
 | path | what it teaches |
 |---|---|
@@ -189,7 +247,10 @@ you'd add a `TRACE`/ARI path — ask and we'll build it.
 | `scripts/benchmark.py` | µs/frame and real-time factor |
 | `scripts/demo_file.py` | run/plot VAD on any wav |
 | `scripts/audiosocket_server.py` | the telephony front door |
-| `tests/test_all.py` | 22 tests incl. streaming≡offline and gradcheck |
+| `scripts/distill_label.py` | Silero teacher → soft labels (+ disagreement report) |
+| `scripts/calibrate_events.py` | event-level threshold calibration |
+| `scripts/evaluate_distill.py` | student vs teacher: agreement, boundaries, speed |
+| `tests/test_all.py` | 23 tests incl. streaming≡offline and gradcheck |
 
 ## Limits & next steps
 

@@ -51,9 +51,10 @@ def default_model_path() -> Path | None:
     here = Path(__file__).resolve()
     for cand in (here.parent.parent / "models",
                  here.parent / "models"):
-        p = cand / "teensy-v1.npz"
-        if p.exists():
-            return p
+        for name in ("teensy-v2.npz", "teensy-v1.npz"):
+            p = cand / name
+            if p.exists():
+                return p
     return None
 
 
@@ -209,6 +210,20 @@ class StreamingVAD:
         return events
 
     # ------------------------------------------------------------------
+
+    def flush(self) -> list[VADEvent]:
+        """Close any open speech segment at the current position.
+
+        Call at end-of-stream (hangup, EOF).  Without it, speech that is
+        still ongoing when audio ends is never reported as a segment.
+        """
+        if not self._hyst.in_speech:
+            return []
+        t = self._hyst._i * self.hop_s
+        # force the state machine closed
+        self._hyst.in_speech = False
+        self._hyst._off_streak = 0
+        return [VADEvent("speech_end", t)]
 
     @property
     def in_speech(self) -> bool:

@@ -91,6 +91,11 @@ class VADHandler(socketserver.BaseRequestHandler):
                           f"(stream t={ev.t:.2f}s, P={vad.last_prob:.2f})", flush=True)
 
             elif mtype == T_HANGUP:
+                for ev in vad.feed(b""):        # drain any pending audio
+                    pass
+                for ev in vad.flush():          # close segment open at hangup
+                    print(f"    [{time.time()-t0:8.2f}s] {ev.type}  "
+                          f"(stream t={ev.t:.2f}s, EOF flush)", flush=True)
                 break
             elif mtype == T_ERROR:
                 print(f"    ! audiosocket error code {payload!r}", flush=True)

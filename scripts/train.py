@@ -27,11 +27,11 @@ from teensyvad.model import MLP, auc, prf, train  # noqa: E402
 from scripts_utils import context_windows  # noqa: E402
 
 
-def load_split(path: Path, K: int):
+def load_split(path: Path, K: int, ycol: str = "y"):
     """(F, y) → context-stacked (X, y). Window t covers frames [t .. t+K-1],
     labelled by its NEWEST frame — same convention as StreamingVAD."""
     z = np.load(path)
-    F, y = z["F"], z["y"]
+    F, y = z["F"], z[ycol]
     X, yw = context_windows(F, y, K)
     return X, yw.astype(np.float32)
 
@@ -45,11 +45,14 @@ def main() -> None:
     ap.add_argument("--epochs", type=int, default=60)
     ap.add_argument("--batch", type=int, default=1024)
     ap.add_argument("--lr", type=float, default=2e-3)
+    ap.add_argument("--data-suffix", default="", help="e.g. '.distill' for teacher labels")
+    ap.add_argument("--ycol", default="y", choices=["y", "ysoft"],
+                    help="y = hard 0/1 labels, ysoft = teacher probabilities")
     args = ap.parse_args()
 
     K = args.context
-    Xtr, ytr = load_split(args.data / "train.npz", K)
-    Xva, yva = load_split(args.data / "val.npz", K)
+    Xtr, ytr = load_split(args.data / f"train{args.data_suffix}.npz", K, args.ycol)
+    Xva, yva = load_split(args.data / f"val{args.data_suffix}.npz", K, args.ycol)
     print(f"train: {Xtr.shape}  speech {ytr.mean()*100:.1f}%   "
           f"val: {Xva.shape}  speech {yva.mean()*100:.1f}%")
 
