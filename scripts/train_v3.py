@@ -70,7 +70,8 @@ def train_float(model, tr: LazyWindows, va: LazyWindows, *, epochs=30, bs=2048,
                 lr=2e-3, patience=6, thr=0.5, seed=0, tag="float"):
     rng = np.random.default_rng(seed)
     opt = Adam(model.p, lr=lr)
-    best = {"f1": -1, "params": {k: v.copy() for k, v in model.p.items()}, "ep": -1}
+    best = {"f1": -1, "auc": -1, "ep": -1,
+            "params": {k: v.copy() for k, v in model.p.items()}}
     for ep in range(1, epochs + 1):
         order = rng.permutation(len(tr))
         losses = []
@@ -83,14 +84,14 @@ def train_float(model, tr: LazyWindows, va: LazyWindows, *, epochs=30, bs=2048,
         print(f"[{tag}] epoch {ep:3d}  loss {np.mean(losses):.4f}  "
               f"val_f1 {ev['f1']:.4f}  val_auc {ev['auc']:.4f}", flush=True)
         if ev["f1"] > best["f1"]:
-            best = {"f1": ev["f1"], "ep": ep,
+            best = {"f1": ev["f1"], "auc": ev["auc"], "ep": ep,
                     "params": {k: v.copy() for k, v in model.p.items()}}
         elif ep - best["ep"] >= patience:
             print(f"[{tag}] early stop (best {best['f1']:.4f} @ {best['ep']})")
             break
     for k, v in best["params"].items():
         model.p[k] = v
-    return model
+    return model, best
 
 
 def qat_finetune(model, tr: LazyWindows, va: LazyWindows, *, epochs=10, bs=2048,
@@ -157,12 +158,14 @@ def main() -> None:
         model.in_mean = np.tile(mean40, K).astype(np.float32)
         model.in_std = np.tile(std40, K).astype(np.float32)
         # lazy training doesn't auto-fit stats (train() does); we just did.
-        train_float(model, tr, va, epochs=args.epochs, thr=thr, seed=args.seed)
+        model, best = train_float(model, tr, va, epochs=args.epochs, thr=thr, seed=args.seed)
         meta = dict(sr=8000, n_mels=20, win_ms=25.0, hop_ms=10.0, n_fft=256,
                     fmin=80.0, fmax=3800.0, deltas=True, context=K,
                     thr_hi=0.5, thr_lo=0.3, hangover_ms=250.0, on_frames=3,
                     arch="mlp", hidden=args.hidden,
-                    trained_with="scripts/train_v3.py", data="prepared_v3")
+                    trained_with="scripts/train_v3.py", data="prepared_v3",
+                    val_f1=round(float(best["f1"]), 4),
+                    val_auc=round(float(best["auc"]), 4))
         model.save(args.out, extra_meta=meta)
         print(f"saved → {args.out}  ({time.time()-t0:.0f}s)")
 

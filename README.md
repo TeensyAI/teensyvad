@@ -240,34 +240,38 @@ Question: *does more data help, and how good is this on real recordings?*
   batch; the full 10.7M×400 matrix would be 17 GB)
 
 **Real-world evaluation** (`scripts/eval_realworld.py`) — human-labelled
-recordings, never seen in training:
+recordings, never seen in training. *AUC everywhere on raw probabilities*
+(earlier drafts binarised Silero's output, understating its ranking —
+corrected):
 
 *TEN VAD public set — 30 real recordings (the set FlashVAD reports on):*
 
 | model | F1 (stored thr) | AUC | F1 @ best thr |
 |---|---|---|---|
-| v1 | 0.850 | 0.848 | 0.877 |
-| v2 | 0.869 | 0.868 | 0.890 |
-| **v3** | 0.866 | **0.873** | **0.894** |
-| Silero (teacher) | 0.937 | 0.863 | 0.938 |
+| v1 | 0.877 | 0.848 | 0.877 |
+| v2 | 0.890 | 0.868 | 0.890 |
+| **v3** | 0.894 | 0.873 | **0.894** |
+| Silero (teacher) | 0.938 | **0.952** | 0.938 |
 | FlashVAD (published) | 0.889 | 0.882 | — |
 
 *AMI SDM meetings — 8 real meeting rooms, distant mic, manual labels:*
 
 | model | F1 | AUC | FAR | MR |
 |---|---|---|---|---|
-| v2 | 0.880 | 0.848 | 64% | 8.7% |
-| **v3** | **0.886** | **0.861** | 80% | 4.4% |
-| Silero (teacher) | 0.714 | 0.772 | 1.2% | 44.4% |
+| v2 | 0.880 | 0.848 | 64% | 9% |
+| **v3** | **0.886** | 0.861 | 80% | 4% |
+| Silero (teacher) | 0.714 | **0.894** | 1% | 44% |
+| WebRTC VAD (agg=0) | 0.842 | 0.760 | 25% | 23% |
 | energy baseline | 0.592 | 0.658 | 12% | 57% |
 
 Findings, stated honestly:
 
-1. **v3 wins on ranking quality everywhere** — AUC 0.873 (TEN) and 0.861
-   (AMI), beating v2, v1 *and its own Silero teacher* (0.863 / 0.772).
-   A 20k-param student, distilled then scaled, out-ranks the 2M-param
-   teacher on real recordings. Silero still wins TEN F1 at its own
-   threshold — its probabilities are better calibrated for close-mic.
+1. **Silero ranks best by AUC everywhere** (0.952 TEN / 0.894 AMI) — an
+   87× larger model. What the tiny student wins is the *operating
+   point*: Silero's stock threshold misses 44 % of speech in real rooms
+   (AMI F1 0.714) while calibrated v3 catches 0.886. Rankings transfer;
+   thresholds don't — calibrate whatever you deploy.
+2. **v3 ≥ WebRTC VAD on every comparable metric**, in pure numpy.
 2. **More data helped modestly, harder data helped more**: val AUC
    0.9235 → 0.9289 (synthetic), but the real-world AUC gains (+0.006
    TEN, +0.013 AMI over v2) come mostly from babble + ambience + low
@@ -293,6 +297,25 @@ Findings, stated honestly:
 G.711 µ-law round-trip changes every number by <0.5% (see
 `eval_realworld.py` output) — the training-time telephony augmentation
 earned its keep.
+
+### Capacity sweep: 20k → 40k → 80k → 100k params
+
+`scripts/compare_all.py` + `scripts/scale_sweep.sh` trained all three
+families at ~40k / ~80k / ~100k parameters (hidden sizes 88/48, 164/88,
+200/96). Result, in one line: **capacity scales only with data.**
+
+| family (training frames) | 20k | 40k | 80k | 100k |
+|---|---|---|---|---|
+| v1 (1M, construction labels) | 0.911 | 0.909 | 0.910 | 0.910 |
+| v2 (1M, teacher labels) | 0.910 | 0.912 | 0.912 | 0.911 |
+| v3 (10.7M, teacher labels) | 0.911 | 0.916 | **0.917** | 0.916 |
+
+(val F1; v3's TEN AUC peaks at the 80k model, 0.877.) On 1M frames the
+families saturate at ~20k params — bigger nets just overfit slightly. On
+10.7M frames the sweet spot moves to ~80k. Full 14-model comparison
+table (all teensy sizes vs Silero / WebRTC / Energy, with charts):
+`comparison.json`, `hf_assets/*.png`, and the BENCHMARKS.md appendix
+published in the HF repos.
 
 
 

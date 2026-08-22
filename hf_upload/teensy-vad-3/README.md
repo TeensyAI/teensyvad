@@ -59,15 +59,19 @@ architecture** as [v1](https://huggingface.co/Teensy/teensy-vad-1) and
 [v2](https://huggingface.co/Teensy/teensy-vad-2), trained on 10× more
 and much harder data — and evaluated on human-labelled real recordings.
 
-**Headline**: on both real-world test sets this 87 KB student
-**out-ranks its own Silero teacher** (and every other model in the
-family) by ROC-AUC.
+**Headline**: at its AMI-calibrated operating point this 87 KB student
+scores **AMI F1 0.886 vs Silero's 0.714** (Silero's stock threshold
+misses 44 % of speech in real rooms), and **beats WebRTC VAD on every
+metric** — at 1/20th the size of the Silero model. On ranking quality
+(AUC, computed on raw probabilities for every system) Silero remains
+ahead (see the comparison below) — the honest split is: *Silero ranks
+best; teensy-v3 operates best in rooms, per KB and per µs.*
 
 | real-world benchmark | v1 | v2 | **v3** | Silero (teacher) |
 |---|---|---|---|---|
-| TEN VAD public set — AUC | 0.848 | 0.868 | **0.873** | 0.863 |
-| AMI SDM meetings — AUC | 0.835 | 0.848 | **0.861** | 0.772 |
-| AMI SDM meetings — F1 | 0.743 | 0.880 | **0.886** | 0.714 |
+| TEN VAD public set — AUC | 0.848 | 0.868 | **0.873** | 0.952 |
+| AMI SDM meetings — AUC | 0.835 | 0.848 | 0.861 | **0.894** |
+| AMI SDM meetings — F1 (calibrated) | 0.887 | 0.880 | **0.886** | 0.714 |
 
 (FlashVAD v0.1, for reference, publishes F1 0.889 / AUC 0.882 on the
 TEN set — threshold-tuned on that set, as is our 0.894 best-threshold
@@ -130,6 +134,31 @@ evaluation meetings were never used for any tuning.
   hardest frames; a GRU/TCN would help (deliberately out of scope —
   this family stays a readable MLP).
 * µ-law/PSTN robustness verified; packet-loss concealment not modelled.
+
+## Comparison vs Energy / WebRTC / Silero — and capacity scaling
+
+Full protocol, charts and the complete 14-model table live in
+[BENCHMARKS.md](BENCHMARKS.md) (same protocol for every system,
+human-labelled audio, AMI-dev-calibrated operating points, AUC on raw
+probabilities). Summary:
+
+| | teensy-v3 (20k) | teensy-v3-80k | Silero VAD | WebRTC VAD | Energy VAD |
+|---|---|---|---|---|---|
+| params | 20,449 | 80,373 | 1,774,000 | ~6k (C) | — |
+| TEN VAD set — F1 (best thr*) | 0.894 | **0.894** | 0.938 | n/a | — |
+| TEN VAD set — AUC | 0.873 | **0.877** | 0.952 | n/a | 0.670 |
+| AMI SDM — F1 (calibrated) | **0.886** | 0.882 | 0.714 | 0.842 | 0.592 |
+| AMI SDM — AUC | 0.861 | 0.861 | **0.894** | 0.760 | 0.658 |
+| µs / 20 ms chunk | 63 | 64 | 89 | **2** | 7 |
+
+\* tuned on that set — like-for-like with FlashVAD's published
+F1 0.889 / AUC 0.882.
+
+This family was trained at 20k/40k/80k/100k params on the same 10.7M
+frames (`teensy-v3-{40k,80k,100k}.npz`): capacity pays here up to a
+**sweet spot at ~80k** (TEN AUC 0.873 → 0.877) then saturates — while
+the v1/v2 families (1M frames) are flat from 20k. Capacity scales only
+with data. See `capacity.png` in BENCHMARKS.md.
 
 ## License & data
 

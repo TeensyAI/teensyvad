@@ -125,6 +125,31 @@ use the ONNX int8 file (real int8 kernels, 0.067 µs/frame batched).
   used AMI-calibrated thresholds (0.10); the stored default suits
   synthetic-event use.
 
+## Comparison vs Energy / WebRTC / Silero
+
+Same protocol for every system, human-labelled real audio, operating
+points calibrated on held-out AMI dev meetings (full appendix with
+charts and per-size results: [teensy-vad-3/BENCHMARKS.md](https://huggingface.co/Teensy/teensy-vad-3/blob/main/BENCHMARKS.md)):
+
+| | teensy-v2 | Silero VAD | WebRTC VAD | Energy VAD |
+|---|---|---|---|---|
+| params | 20,449 | 1,774,000 | ~6k (C) | — |
+| TEN VAD set — F1 (best thr*) | 0.890 | **0.938** | n/a | — |
+| TEN VAD set — AUC | 0.868 | **0.952** | n/a | 0.670 |
+| AMI SDM — F1 (calibrated) | 0.880 | 0.714 | 0.842 | 0.592 |
+| AMI SDM — AUC | 0.848 | **0.894** | 0.760 | 0.658 |
+| µs / 20 ms chunk | 63 | 89 | **2** | 7 |
+
+\* like-for-like with FlashVAD's published TEN numbers (also
+threshold-tuned on that set): FlashVAD F1 0.889 / AUC 0.882 — teensy-v2
+matches the F1 with 2.3× fewer parameters.
+
+Capacity note: this family was also trained at 40k/80k/100k params
+(`teensy-v2-{40k,80k,100k}.npz`) — like v1, accuracy is flat across
+sizes on the 1M-frame training set. The distilled 20k model is the
+family's sweet spot; scale the *data* instead (see
+[teensy-vad-3](https://huggingface.co/Teensy/teensy-vad-3)).
+
 ## License & data
 
 Code: MIT. Weights: **CC BY-NC-SA 4.0** (ESC-50 training noise is

@@ -187,7 +187,9 @@ def eval_ten(models: dict, lm: LogMel, ulaw: bool, verbose=False):
     for name, r in results.items():
         P = np.concatenate(r["P"]); Y = np.concatenate(r["y"]).astype(bool)
         if name.startswith("_silero"):
-            out[name] = score(P, Y, None)        # decisions already
+            # Silero's trajectory IS probabilities: F1 at 0.5, AUC on raw
+            # probs (binarised AUC would understate its ranking quality).
+            out[name] = score(P, Y, 0.5)
             swept[name] = sweep_best(P, Y)
         elif name.startswith("_energy"):
             out[name] = score(P, Y, None)

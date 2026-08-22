@@ -125,6 +125,27 @@ over-triggering) vs 0.976 here.
 * Operating thresholds stored in metadata were tuned on synthetic
   validation; real-domain thresholds differ (see v3's profiles).
 
+## Comparison vs Energy / WebRTC / Silero
+
+Same protocol for every system, human-labelled real audio, operating
+points calibrated on held-out AMI dev meetings (full appendix with
+charts and per-size results: [teensy-vad-3/BENCHMARKS.md](https://huggingface.co/Teensy/teensy-vad-3/blob/main/BENCHMARKS.md)):
+
+| | teensy-v1 | Silero VAD | WebRTC VAD | Energy VAD |
+|---|---|---|---|---|
+| params | 20,449 | 1,774,000 | ~6k (C) | — |
+| TEN VAD set — AUC | 0.848 | **0.952** | n/a | 0.670 |
+| AMI SDM — F1 (calibrated) | 0.887 | 0.714 | 0.842 | 0.592 |
+| AMI SDM — AUC | 0.835 | **0.894** | 0.760 | 0.658 |
+| µs / 20 ms chunk | 63 | 89 | **2** | 7 |
+
+Capacity note: this family was also trained at 40k/80k/100k params
+(files `teensy-v1-{40k,80k,100k}.npz`) — accuracy is **flat** across
+sizes because the 1M-frame training set saturates first; more parameters
+need more data (demonstrated by the v3 family). Silero ranks best by AUC
+(87× larger); its stock threshold misses 44 % of room speech — every
+calibrated teensy model beats it on AMI F1.
+
 ## License & data
 
 Code: MIT. Weights: **CC BY-NC-SA 4.0** (training noise ESC-50 is
