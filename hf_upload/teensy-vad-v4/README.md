@@ -63,6 +63,33 @@ capacity sweep.
 This card is the home of the family; every named size variant lives in
 this repository.
 
+## Quick Start
+
+```python
+from huggingface_hub import hf_hub_download
+from teensyvad import StreamingVAD                # numpy-only package
+from teensyvad.audio import load_wav, float_to_pcm16
+
+model_path = hf_hub_download("Teensy/teensy-vad-v4", "teensy-v4-80k.npz")
+vad = StreamingVAD(model_path)                    # 8 kHz PCM16 in → events out
+
+pcm = float_to_pcm16(load_wav("long_audio.wav", sr=8000))   # any rate → 8k
+events = []
+for i in range(0, len(pcm), 1600):                # 100 ms chunks (any size ok)
+    events += vad.feed(pcm[i:i+1600])
+events += vad.flush()                             # close a trailing segment
+segments_ms = [[int(a.t * 1000), int(b.t * 1000)]
+               for a, b in zip(events[::2], events[1::2])]
+print(segments_ms)        # [[start_ms, end_ms], ...]
+```
+
+Streaming / telephony (the Asterisk AudioSocket loop): feed 20 ms
+PCM16LE frames — `for ev in vad.feed(frame): ...` emits
+`speech_start` / `speech_end` with timestamps. Domain threshold
+profiles ship in the metadata (`close_mic` default, `distant_room`).
+The `teensyvad` package is pure numpy; the exact feature spec lives in
+[teensy-vad-1's card](https://huggingface.co/Teensy/teensy-vad-1).
+
 ## Why 100 hours
 
 The v3 experiment showed capacity only pays when data scales with it:

@@ -71,6 +71,32 @@ student learned where speech *actually* is:
 | onset Δ | −432 ms | **−172 ms** |
 | offset Δ | +718 ms | **+478 ms** |
 
+## Quick Start
+
+```python
+from huggingface_hub import hf_hub_download
+from teensyvad import StreamingVAD                # numpy-only package
+from teensyvad.audio import load_wav, float_to_pcm16
+
+model_path = hf_hub_download("Teensy/teensy-vad-2", "teensy-v2.npz")
+vad = StreamingVAD(model_path)                    # 8 kHz PCM16 in → events out
+
+pcm = float_to_pcm16(load_wav("long_audio.wav", sr=8000))   # any rate → 8k
+events = []
+for i in range(0, len(pcm), 1600):                # 100 ms chunks (any size ok)
+    events += vad.feed(pcm[i:i+1600])
+events += vad.flush()                             # close a trailing segment
+segments_ms = [[int(a.t * 1000), int(b.t * 1000)]
+               for a, b in zip(events[::2], events[1::2])]
+print(segments_ms)        # [[start_ms, end_ms], ...]
+```
+
+Streaming / telephony (the Asterisk AudioSocket loop): feed 20 ms
+PCM16LE frames — `for ev in vad.feed(frame): ...` emits
+`speech_start` / `speech_end` with timestamps. The `teensyvad` package
+is pure numpy; the exact feature spec lives in
+[teensy-vad-1's card](https://huggingface.co/Teensy/teensy-vad-1).
+
 ## Architecture
 
 Identical to v1 (see its card for the exact, reimplementable feature

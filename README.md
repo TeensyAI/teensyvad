@@ -51,20 +51,46 @@ python3 -m venv .venv && .venv/bin/pip install numpy pytest matplotlib
 The repo ships with a trained `models/teensy-v1.npz`, so the demos work
 without the data steps.
 
-## Using it
+## Quick Start
 
 ```python
-from teensyvad import StreamingVAD
+from huggingface_hub import hf_hub_download
+from teensyvad import StreamingVAD                # numpy-only package (this repo)
+from teensyvad.audio import load_wav, float_to_pcm16
 
-vad = StreamingVAD("models/teensy-v1.npz")   # auto-discovers if omitted
-for chunk in mic_or_phone:                    # bytes = PCM16LE mono 8 kHz
-    for event in vad.feed(chunk):             # any chunk size
-        print(f"{event.t:7.2f}s  {event.type}")   # speech_start / speech_end
-print(vad.speech_seconds)                     # cumulative talk time
+model_path = hf_hub_download("Teensy/teensy-vad-v4", "teensy-v4-80k.npz")
+vad = StreamingVAD(model_path)                    # 8 kHz PCM16 in → events out
+
+# --- file mode: speech segments in milliseconds --------------------------
+pcm = float_to_pcm16(load_wav("long_audio.wav", sr=8000))   # any rate → 8k
+events = []
+for i in range(0, len(pcm), 1600):                # 100 ms chunks (any size ok)
+    events += vad.feed(pcm[i:i+1600])
+events += vad.flush()                             # close a trailing segment
+segments_ms = [[int(a.t * 1000), int(b.t * 1000)]
+               for a, b in zip(events[::2], events[1::2])]
+print(segments_ms)        # [[start_ms, end_ms], ...] e.g. [[90, 5150]]
 ```
 
-`feed()` accepts bytes (PCM16 little-endian) or float arrays — any chunk
-size; frames are processed as they complete.
+## Use in a streaming / ASR pipeline
+
+```python
+# live audio: chunk-in → event-out (this is the Asterisk AudioSocket loop)
+for frame in phone_frames:                        # 20 ms PCM16LE @ 8 kHz
+    for ev in vad.feed(frame):                    # any chunk size
+        print(f"{ev.t:7.2f}s  {ev.type}")         # speech_start / speech_end
+print(f"talk time: {vad.speech_seconds:.1f}s")
+
+# gate transcription / ASR on the events: start recording on
+# speech_start, cut after speech_end + your favourite padding — see
+# scripts/audiosocket_server.py for a working telephony server.
+```
+
+Notes: `feed()` accepts bytes (PCM16 little-endian) or float arrays;
+thresholds ship inside the model file (domain profiles for v3/v4 —
+`close_mic` default, `distant_room` in metadata).  Pure numpy, zero
+runtime dependencies beyond it; ONNX exports in each HF repo for
+non-Python or throughput use.
 
 ## Measured quality (test set: unseen speakers, unseen noise types)
 
