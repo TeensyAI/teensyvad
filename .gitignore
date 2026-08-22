@@ -11,3 +11,4 @@ build/
 .DS_Store
 .mplcache/
 data/prepared_events/
+.hf_cache/
