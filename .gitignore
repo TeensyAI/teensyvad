@@ -16,3 +16,4 @@ space_teensyresearch/static/interpolation/
 space_teensyresearch/static/images/steve.webm
 logs/
 space_teensyresearch/static/videos/
+:memory:.ses
