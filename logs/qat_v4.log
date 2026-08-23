@@ -1,0 +1,2 @@
+(memmap mode: F.npy (37936872, 40) float16)
+train 37,936,863 windows  val 152,311  (10s to load)

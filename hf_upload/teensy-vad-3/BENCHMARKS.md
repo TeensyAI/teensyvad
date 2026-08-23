@@ -37,21 +37,27 @@ in the [teensy-vad-1](https://huggingface.co/Teensy/teensy-vad-1),
 
 | model | params | KB | TEN F1* | TEN AUC | AMI F1 | AMI AUC | µs/20ms |
 |---|---|---|---|---|---|---|---|
-| teensy-v1 | 20,449 | 87 | 0.877 | 0.848 | 0.887 | 0.835 | 63 |
-| teensy-v1-40k | 39,609 | 162 | 0.874 | 0.849 | 0.887 | 0.829 | 65 |
-| teensy-v1-80k | 80,373 | 321 | 0.878 | 0.853 | 0.887 | 0.837 | 64 |
-| teensy-v1-100k | 99,593 | 396 | 0.874 | 0.849 | 0.887 | 0.834 | 65 |
-| teensy-v2 | 20,449 | 87 | 0.890 | 0.868 | 0.880 | 0.848 | 63 |
-| teensy-v2-40k | 39,609 | 162 | 0.889 | 0.868 | 0.883 | 0.844 | 65 |
-| teensy-v2-80k | 80,373 | 321 | 0.886 | 0.867 | 0.880 | 0.843 | 64 |
-| teensy-v2-100k | 99,593 | 396 | 0.885 | 0.867 | 0.880 | 0.843 | 64 |
-| teensy-v3 | 20,449 | 88 | 0.894 | 0.873 | 0.886 | 0.861 | 63 |
-| teensy-v3-40k | 39,609 | 162 | 0.892 | 0.873 | 0.881 | 0.859 | 65 |
-| **teensy-v3-80k** | 80,373 | 321 | **0.894** | **0.877** | 0.882 | 0.861 | 64 |
-| teensy-v3-100k | 99,593 | 396 | 0.894 | 0.875 | 0.884 | 0.861 | 64 |
-| Silero VAD | 1,774,000 | 2,200 | **0.938** | **0.952** | 0.714 | **0.894** | 89 |
+| v1 | 20,449 | 87 | 0.877 | 0.848 | 0.887 | 0.835 | 64 |
+| v1-40k | 39,609 | 162 | 0.874 | 0.849 | 0.887 | 0.829 | 66 |
+| v1-80k | 80,373 | 321 | 0.878 | 0.853 | 0.887 | 0.837 | 65 |
+| v1-100k | 99,593 | 396 | 0.874 | 0.849 | 0.887 | 0.834 | 66 |
+| v2 | 20,449 | 87 | 0.890 | 0.868 | 0.880 | 0.848 | 65 |
+| v2-40k | 39,609 | 162 | 0.889 | 0.868 | 0.882 | 0.844 | 66 |
+| v2-qat | 20,449 | 28 | 0.887 | 0.863 | 0.881 | 0.849 | 95 |
+| v2-80k | 80,373 | 321 | 0.886 | 0.867 | 0.880 | 0.843 | 64 |
+| v2-100k | 99,593 | 396 | 0.885 | 0.867 | 0.880 | 0.843 | 65 |
+| v3 | 20,449 | 88 | 0.894 | 0.873 | **0.886** | 0.861 | 63 |
+| v3-40k | 39,609 | 162 | 0.892 | 0.873 | 0.881 | 0.859 | 67 |
+| v3-qat | 20,449 | 29 | 0.894 | 0.873 | 0.884 | 0.862 | 93 |
+| v3-80k | 80,373 | 321 | 0.894 | 0.877 | 0.882 | 0.861 | 66 |
+| v3-100k | 99,593 | 396 | 0.894 | 0.875 | 0.884 | 0.861 | 67 |
+| v4 | 20,449 | 87 | 0.892 | 0.871 | 0.884 | 0.861 | 63 |
+| v4-40k | 39,609 | 162 | 0.892 | 0.875 | 0.883 | 0.862 | 65 |
+| v4-80k | 80,373 | 321 | 0.895 | **0.880** | 0.880 | 0.862 | 66 |
+| v4-100k | 99,593 | 396 | 0.892 | 0.875 | 0.882 | 0.861 | 65 |
+| Silero VAD | 1,774,000 | 2200 | **0.938** | **0.952** | 0.714 | **0.894** | 89 |
 | WebRTC VAD | ~6k (C) | ~50 | n/a | n/a | 0.842 | 0.760 | 2 |
-| Energy VAD | — | — | — | 0.670 | 0.592 | 0.658 | 7 |
+| Energy VAD | — | — | n/a | 0.670 | 0.592 | 0.658 | 7 |
 
 Reading the table honestly:
 
@@ -62,7 +68,10 @@ Reading the table honestly:
 2. **teensy-v3 ≥ WebRTC everywhere** it can be compared, with pure numpy.
 3. **Capacity scales only with data**: v1/v2 families are flat from
    20k→100k params (1M training frames); v3 (10.7M frames) gains to a
-   sweet spot at ~80k (TEN AUC 0.877). See `capacity.png`.
+   sweet spot at ~80k (TEN AUC 0.877); v4 (37.9M frames = the full 100 h
+   of train-clean-100) keeps paying to 100k on val but peaks on real
+   audio at **v4-80k: TEN AUC 0.880** — essentially matching FlashVAD's
+   published 0.882 at 2.3× fewer parameters. See `capacity.png`.
 4. **Cost**: every teensy model fits in ≤ 400 KB and scores a frame in
    ~64 µs with zero dependencies beyond numpy.
 
@@ -74,7 +83,8 @@ Reading the table honestly:
 
 * **FlashVAD v0.1** (TEN public set, their model card): F1 0.889,
   AUC 0.882, FAR 26.3 %, MR 13.0 % — thresholds tuned on that set.
-  Our teensy-v3-80k: F1 0.894*, AUC 0.877, at 2.3× fewer parameters.
+  Our best: teensy-v4-80k F1 0.895*, AUC 0.880 (teensy-v3-80k: 0.894 /
+  0.877) — at 2.3× fewer parameters than FlashVAD.
 * **TEN VAD itself** is a 96k-param production VAD; no public labels-benchmark
   numbers on this set beyond FlashVAD's and ours.
 * **Silero VAD** publishes quality curves on its own sets (not AMI/TEN);
