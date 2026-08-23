@@ -38,7 +38,8 @@ VARIANTS = {
            ("teensy-v3-qat (int8)", "v3-qat")],
     "v4": [("teensy-v4 (20k)", "v4"), ("teensy-v4-40k", "v4-40k"),
            ("teensy-v4-80k", "v4-80k"), ("teensy-v4-100k", "v4-100k"),
-           ("teensy-v4-qat (int8)", "v4-qat")],
+           ("teensy-v4-qat (int8)", "v4-qat"), ("teensy-v4-40k-qat", "v4-40k-qat"),
+           ("teensy-v4-80k-qat", "v4-80k-qat"), ("teensy-v4-100k-qat", "v4-100k-qat")],
 }
 BASELINES = ["Silero VAD", "WebRTC VAD", "Energy VAD"]
 
@@ -49,7 +50,8 @@ PANELS = [("TEN VAD set\nAUC", "ten_auc", False),
           ("size\nKB (log)", "kb", True)]
 
 for fam in ("v1", "v2", "v3", "v4"):
-    entries = [(name, FAM_COLOR[fam], BY[key]) for name, key in VARIANTS[fam]]
+    entries = [(name, FAM_COLOR[fam], BY[key]) for name, key in VARIANTS[fam]
+               if key in BY]          # skip variants not yet in comparison.json
     entries += [(b.replace(" VAD", ""), BASE_COLOR[b], BY[b]) for b in BASELINES]
     fig, ax = plt.subplots(1, 5, figsize=(15.5, 4.0))
     for a, (title, field, logy) in zip(ax, PANELS):
