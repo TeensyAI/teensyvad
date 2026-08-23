@@ -1,4 +1,8 @@
-# teensyvad — a VAD small enough to understand
+# TeensyVAD — a VAD small enough to understand
+
+**TeensyVAD by VoxLogic** · [models on HuggingFace](https://huggingface.co/Teensy) ·
+[paper page](https://metacritical-teensyresearch.static.hf.space/index.html) ·
+contact: [pankaj@voxlogic.ai](mailto:pankaj@voxlogic.ai)
 
 **Voice activity detection** answers one question per audio frame: *is
 somebody talking right now?*  It's the piece that decides when a
