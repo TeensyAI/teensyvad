@@ -158,6 +158,12 @@
                     <td>0.892</td><td>0.875</td><td>0.882</td><td>0.861</td><td>64</td></tr>
                 <tr><td>teensy-v4-qat (int8)</td><td>20,449</td><td><b>28</b></td>
                     <td>0.894</td><td>0.876</td><td>0.884</td><td>0.862</td><td>92</td></tr>
+                <tr><td>teensy-v4-40k-qat (int8)</td><td>39,609</td><td>47</td>
+                    <td>0.892</td><td>0.877</td><td>0.881</td><td>0.862</td><td>99</td></tr>
+                <tr class="is-selected"><td><b>teensy-v4-80k-qat (int8)</b></td><td>80,373</td><td><b>88</b></td>
+                    <td>0.894</td><td>0.877</td><td><b>0.882</b></td><td><b>0.863</b></td><td>113</td></tr>
+                <tr><td>teensy-v4-100k-qat (int8)</td><td>99,593</td><td>107</td>
+                    <td>0.891</td><td>0.876</td><td>0.881</td><td>0.862</td><td>120</td></tr>
                 <tr><td>Silero VAD (teacher)</td><td>1,774,000</td><td>2,200</td>
                     <td><b>0.938</b></td><td><b>0.952</b></td><td>0.714</td><td><b>0.894</b></td><td>89</td></tr>
                 <tr><td>WebRTC VAD (agg 0)</td><td>~6k (C)</td><td>~50</td>
@@ -219,11 +225,18 @@
             Post-training int8 quantization is essentially free on these models
             (ΔAUC&nbsp;≈&nbsp;0.000). Quantization-aware training (fake-quant forward
             pass with straight-through-estimator gradients; a unit test pins simulation
-            ≡ deployed inference) adds further accuracy at identical size. The standout:
-            <b>teensy-v4-qat — 28 KB, TEN AUC 0.876 — beats its 87 KB float32 parent
-            (0.871)</b> and sits within 0.005 of the 80k champion at 1/11th the size.
-            In pure NumPy, int8 is a <i>size</i> play (no int8 BLAS kernels; float32
-            GEMM wins single-frame); real int8 speed lives in ONNX Runtime.
+            ≡ deployed inference) holds that line across the whole size range —
+            int8 matches float32 within ±0.003 real-world AUC at every size, in
+            files 2.7–3.7× smaller. Size-by-size (TEN AUC, float → int8):
+            20k&nbsp;0.871→<b>0.876</b> (int8 <i>beats</i> float), 40k&nbsp;0.875→0.877,
+            80k&nbsp;0.880→0.877, 100k&nbsp;0.875→0.876. Two standouts:
+            <b>teensy-v4-80k-qat — 88 KB, TEN AUC 0.877, the family's best AMI AUC
+            (0.863)</b>, and <b>teensy-v4-qat — 28 KB, TEN AUC 0.876, beats its
+            87 KB float32 parent</b>. Notably, int8-vs-float is not monotonic in
+            size: quantization sensitivity depends on the learned weight
+            distribution, not parameter count. In pure NumPy, int8 is a
+            <i>size</i> play (no int8 BLAS kernels); real int8 speed lives in
+            ONNX Runtime.
           </p>
         </div>
       </div>

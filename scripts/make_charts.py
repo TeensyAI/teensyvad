@@ -76,7 +76,7 @@ for a, (t, col) in zip(ax, panels):
     vis = [(e[0], e[1], e[col]) for e in entries if e[col] is not None]
     xs = np.arange(len(vis))
     bars = a.bar(xs, [v for _, _, v in vis], color=[c for _, c, _ in vis])
-    a.set_xticks(xs, [n for n, _, _ in vis], fontsize=8)
+    a.set_xticks(xs, [n for n, _, _ in vis], fontsize=8, rotation=38, ha="right")
     a.set_title(t, fontsize=10)
     a.set_ylim(0.3, 1.0)
     a.grid(alpha=0.3, axis="y")

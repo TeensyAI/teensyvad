@@ -124,10 +124,13 @@ the comparison section below; the shared protocol lives in
 | name | file | params | KB | role |
 |---|---|---|---|---|
 | **teensy-v4** | `teensy-v4.npz` | 20,449 | 87 | the default |
-| **teensy-v4-qat** | `teensy-v4-qat.npz` | 20,449 | **28** | **int8 QAT — TEN AUC 0.876 at 28 KB, beats float v4** |
+| **teensy-v4-qat** | `teensy-v4-qat.npz` | 20,449 | **28** | int8 QAT — beats float v4 on TEN AUC |
 | teensy-v4-40k | `teensy-v4-40k.npz` | 39,609 | 161 | capacity step |
-| teensy-v4-80k | `teensy-v4-80k.npz` | 80,373 | 321 | real-world champion (best TEN AUC 0.880) |
+| teensy-v4-40k-qat | `teensy-v4-40k-qat.npz` | 39,609 | 47 | int8 QAT |
+| teensy-v4-80k | `teensy-v4-80k.npz` | 80,373 | 321 | real-world champion (TEN AUC 0.880) |
+| **teensy-v4-80k-qat** | `teensy-v4-80k-qat.npz` | 80,373 | **88** | **int8 QAT — best AMI AUC of the family (0.863)** |
 | teensy-v4-100k | `teensy-v4-100k.npz` | 99,593 | 396 | capacity ceiling |
+| teensy-v4-100k-qat | `teensy-v4-100k-qat.npz` | 99,593 | 107 | int8 QAT |
 
 ## Training
 
