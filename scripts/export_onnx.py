@@ -24,7 +24,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from teensyvad.model import load_model  # noqa: E402
+from teensyvad.quant import load_any as load_model  # noqa: E402  (float OR quantized npz)
 from scripts_utils import context_windows  # noqa: E402
 
 

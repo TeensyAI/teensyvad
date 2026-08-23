@@ -1,2 +1,14 @@
 (memmap mode: F.npy (37936872, 40) float16)
 train 37,936,863 windows  val 152,311  (10s to load)
+[qat] epoch   1  loss 0.2481  int8-val F1 0.9134
+[qat] epoch   2  loss 0.2480  int8-val F1 0.9139
+[qat] epoch   3  loss 0.2479  int8-val F1 0.9131
+[qat] epoch   4  loss 0.2478  int8-val F1 0.9134
+[qat] epoch   5  loss 0.2478  int8-val F1 0.9136
+[qat] epoch   6  loss 0.2477  int8-val F1 0.9145
+[qat] epoch   7  loss 0.2476  int8-val F1 0.9139
+[qat] epoch   8  loss 0.2476  int8-val F1 0.9136
+[qat] epoch   9  loss 0.2476  int8-val F1 0.9131
+[qat] epoch  10  loss 0.2475  int8-val F1 0.9119
+saved → models/teensy-v4-qat.npz  (1566s)
+EXIT_CODE=0

@@ -124,8 +124,9 @@ the comparison section below; the shared protocol lives in
 | name | file | params | KB | role |
 |---|---|---|---|---|
 | **teensy-v4** | `teensy-v4.npz` | 20,449 | 87 | the default |
+| **teensy-v4-qat** | `teensy-v4-qat.npz` | 20,449 | **28** | **int8 QAT — TEN AUC 0.876 at 28 KB, beats float v4** |
 | teensy-v4-40k | `teensy-v4-40k.npz` | 39,609 | 161 | capacity step |
-| teensy-v4-80k | `teensy-v4-80k.npz` | 80,373 | 321 | capacity step |
+| teensy-v4-80k | `teensy-v4-80k.npz` | 80,373 | 321 | real-world champion (best TEN AUC 0.880) |
 | teensy-v4-100k | `teensy-v4-100k.npz` | 99,593 | 396 | capacity ceiling |
 
 ## Training
@@ -159,7 +160,9 @@ points, AUC on raw probabilities — full appendix:
 \* tuned on that set — like-for-like with FlashVAD's published
 F1 0.889 / AUC 0.882: **v4-80k essentially matches FlashVAD's AUC
 (0.880 vs 0.882) at 2.3× fewer parameters**, and leads every prior
-teensy family on TEN AUC.
+teensy family on TEN AUC. The int8 QAT variant holds TEN AUC 0.876
+in a **28 KB** file — within 0.005 of the 80k champion at 1/11th the
+size (val F1 0.9145, matching float v4).
 
 ![teensy-vad-v4 variants vs baselines](chart_v4.png)
 
