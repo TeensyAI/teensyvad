@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="description"
+        content="teensyvad: a family of 20k-100k parameter voice activity detectors for 8 kHz telephony, trained by distillation from Silero VAD and evaluated on human-labelled real-world audio.">
+  <meta name="keywords" content="VAD, voice activity detection, telephony, distillation, on-device, quantization">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>teensyvad — Tiny Voice Activity Detectors for Telephony</title>
+
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro"
+        rel="stylesheet">
+
+  <link rel="stylesheet" href="./static/css/bulma.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-carousel.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-slider.min.css">
+  <link rel="stylesheet" href="./static/css/fontawesome.all.min.css">
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <link rel="stylesheet" href="./static/css/index.css">
+  <link rel="icon" href="./static/images/favicon.svg">
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script defer src="./static/js/fontawesome.all.min.js"></script>
+  <script src="./static/js/bulma-carousel.min.js"></script>
+  <script src="./static/js/bulma-slider.min.js"></script>
+  <script src="./static/js/index.js"></script>
+</head>
+<body>
+
+<section class="hero">
+  <div class="hero-body">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column has-text-centered">
+          <h1 class="title is-1 publication-title">
+            teensyvad: Tiny Voice Activity Detectors for Telephony
+          </h1>
+          <div class="is-size-5 publication-authors">
+            <span class="author-block">
+              <a href="https://huggingface.co/Teensy" target="_blank">Teensy</a><sup>1</sup>,</span>
+            <span class="author-block">
+              Pankaj Doharey<sup>1</sup>
+            </span>
+          </div>
+
+          <div class="is-size-5 publication-authors">
+            <span class="author-block"><sup>1</sup>teensyvad project — all artifacts open</span>
+          </div>
+
+          <div class="column has-text-centered">
+            <div class="publication-links">
+              <span class="link-block">
+                <a href="https://huggingface.co/Teensy/teensy-vad-v4" target="_blank"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon"><i class="fas fa-box-open"></i></span>
+                  <span>Models (v1–v4)</span>
+                </a>
+              </span>
+              <span class="link-block">
+                <a href="https://huggingface.co/Teensy/teensy-vad-3/blob/main/BENCHMARKS.md" target="_blank"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon"><i class="far fa-file-alt"></i></span>
+                  <span>Benchmark appendix</span>
+                </a>
+              </span>
+              <span class="link-block">
+                <a href="https://huggingface.co/Teensy/teensy-vad-1" target="_blank"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon"><i class="fas fa-cog"></i></span>
+                  <span>Feature spec (v1 card)</span>
+                </a>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Abstract</h2>
+        <div class="content has-text-justified">
+          <p>
+            We present <b>teensyvad</b>, a family of voice activity detectors sized
+            20,449–99,593 parameters — small enough to read end-to-end in one sitting,
+            implemented in pure NumPy with hand-written backpropagation, and native to
+            8&nbsp;kHz telephony audio (no resampling anywhere). Across four training
+            generations we study what matters at this scale: (1)&nbsp;<b>labels</b> —
+            distilling frame targets from Silero VAD tightens onset/offset boundaries
+            by 2–3× over synthetic construction labels; (2)&nbsp;<b>data</b> — capacity
+            only pays when data scales with it (families are flat 20k→100k on 1M frames,
+            but improve monotonically on the 37.9M frames of the full 100&nbsp;h
+            LibriSpeech train-clean-100); and (3)&nbsp;<b>quantization</b> —
+            quantization-aware training recovers accuracy over post-training
+            quantization at identical size, yielding a <b>28&nbsp;KB int8 model that
+            outperforms its 87&nbsp;KB float32 parent</b>. On human-labelled real-world
+            audio — the TEN VAD public set and AMI SDM meetings — the best 100-hour
+            model reaches <b>0.880&nbsp;ROC-AUC on TEN</b> (FlashVAD v0.1 publishes
+            0.882 with 2.3× the parameters) and <b>AMI frame F1&nbsp;0.886 vs
+            Silero's stock 0.714</b> (the 1.77M-parameter teacher's default threshold
+            misses 44% of speech in real rooms). Offline batched inference runs at
+            <b>0.064&nbsp;µs/frame</b> with ONNX Runtime int8 — the fastest figure we
+            are aware of among open VADs in this mode, enabled by the stateless-MLP
+            design (recurrent VADs cannot batch through time). Everything — code,
+            weights, evaluation harness, and this site's charts — is reproducible from
+            the linked repositories.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-full-width">
+        <h2 class="title is-3">Real-world benchmarks</h2>
+        <div class="content">
+          <p>
+            All systems evaluated on the same 10&nbsp;ms frame grid with human labels.
+            Operating points calibrated on held-out AMI dev meetings for every detector
+            (WebRTC aggressiveness swept 0–3; Silero and Energy at stock settings).
+            AUC computed on raw probabilities where available. Test sets: the TEN VAD
+            public set (30 recordings) and 8 AMI SDM meetings (distant mic); neither
+            was used in training or calibration.
+          </p>
+          <img src="./static/images/charts/realworld.png" alt="Real-world comparison chart"
+               style="width:100%; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12);">
+          <p class="is-size-7 has-text-grey" style="margin-top:6px;">
+            Best size per family vs public baselines. Silero ranks best by AUC (87×
+            larger model); teensy-v3/v4 win the calibrated operating point on AMI and
+            match FlashVAD's published TEN numbers at a fraction of the size.
+          </p>
+
+          <div class="table-container" style="margin-top:18px;">
+            <table class="table is-bordered is-striped is-narrow is-hoverable is-fullwidth"
+                   style="font-size:0.86rem;">
+              <thead>
+                <tr><th>model</th><th>params</th><th>KB</th>
+                    <th>TEN F1*</th><th>TEN AUC</th>
+                    <th>AMI F1</th><th>AMI AUC</th><th>µs / 20 ms</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>teensy-v1</td><td>20,449</td><td>87</td>
+                    <td>0.877</td><td>0.848</td><td>0.887</td><td>0.835</td><td>64</td></tr>
+                <tr><td>teensy-v2</td><td>20,449</td><td>87</td>
+                    <td>0.890</td><td>0.868</td><td>0.880</td><td>0.848</td><td>63</td></tr>
+                <tr><td>teensy-v3-80k</td><td>80,373</td><td>321</td>
+                    <td>0.894</td><td>0.877</td><td>0.882</td><td>0.861</td><td>66</td></tr>
+                <tr class="is-selected"><td><b>teensy-v4-80k</b></td><td>80,373</td><td>321</td>
+                    <td><b>0.896</b></td><td><b>0.880</b></td><td>0.880</td><td>0.862</td><td>66</td></tr>
+                <tr><td>teensy-v4-qat (int8)</td><td>20,449</td><td><b>28</b></td>
+                    <td>0.894</td><td>0.876</td><td>0.884</td><td>0.862</td><td>92</td></tr>
+                <tr><td>Silero VAD (teacher)</td><td>1,774,000</td><td>2,200</td>
+                    <td><b>0.938</b></td><td><b>0.952</b></td><td>0.714</td><td><b>0.894</b></td><td>89</td></tr>
+                <tr><td>WebRTC VAD (agg 0)</td><td>~6k (C)</td><td>~50</td>
+                    <td>n/a</td><td>n/a</td><td>0.842</td><td>0.760</td><td><b>2</b></td></tr>
+                <tr><td>Energy VAD (adaptive)</td><td>—</td><td>—</td>
+                    <td>—</td><td>0.670</td><td>0.592</td><td>0.658</td><td>7</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="is-size-7 has-text-grey">
+            *TEN F1 at best-F1 threshold (upper bound) — like-for-like with FlashVAD's
+            published TEN numbers (F1 0.889 / AUC 0.882 / FAR 26.3%). AMI F1 at
+            AMI-dev-calibrated thresholds. Speed = full streaming path, median
+            µs per 20 ms telephony chunk, one core of an Apple M2 Pro.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-full-width">
+        <h2 class="title is-3">What scales: data, not just parameters</h2>
+        <div class="content">
+          <img src="./static/images/charts/capacity.png" alt="Capacity scaling chart"
+               style="width:100%; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12);">
+          <p>
+            The v1/v2 families (1M training frames) are <b>flat</b> from 20k to 100k
+            parameters — larger nets only overfit. The v3 family (10.7M frames) finds a
+            sweet spot at ~80k. The v4 family, trained on the <b>full ~100 h of
+            LibriSpeech train-clean-100</b> (28,539 utterances, 37.9M teacher-labelled
+            frames, memmap/float16 plumbing for a 60 GB-scale design matrix), keeps
+            improving to the largest size tested:
+          </p>
+          <div class="table-container">
+            <table class="table is-bordered is-striped is-narrow is-hoverable is-inline-block"
+                   style="font-size:0.9rem;">
+              <thead><tr><th>family (frames)</th><th>20k</th><th>40k</th><th>80k</th><th>100k</th></tr></thead>
+              <tbody>
+                <tr><td>v1 (1M, construction labels)</td><td>0.911</td><td>0.909</td><td>0.910</td><td>0.910</td></tr>
+                <tr><td>v2 (1M, distilled)</td><td>0.910</td><td>0.912</td><td>0.912</td><td>0.911</td></tr>
+                <tr><td>v3 (10.7M, distilled)</td><td>0.911</td><td>0.916</td><td>0.917</td><td>0.916</td></tr>
+                <tr class="is-selected"><td><b>v4 (37.9M = 100 h, distilled)</b></td>
+                    <td>0.914</td><td>0.918</td><td>0.920</td><td><b>0.921</b></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="is-size-7 has-text-grey">(validation frame F1, Silero-teacher labels)</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-full-width">
+        <h2 class="title is-3">Quantization: QAT makes int8 free</h2>
+        <div class="content">
+          <img src="./static/images/charts/chart_v4.png" alt="v4 family comparison chart"
+               style="width:100%; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12);">
+          <p>
+            Post-training int8 quantization is essentially free on these models
+            (ΔAUC&nbsp;≈&nbsp;0.000). Quantization-aware training (fake-quant forward
+            pass with straight-through-estimator gradients; a unit test pins simulation
+            ≡ deployed inference) adds further accuracy at identical size. The standout:
+            <b>teensy-v4-qat — 28 KB, TEN AUC 0.876 — beats its 87 KB float32 parent
+            (0.871)</b> and sits within 0.005 of the 80k champion at 1/11th the size.
+            In pure NumPy, int8 is a <i>size</i> play (no int8 BLAS kernels; float32
+            GEMM wins single-frame); real int8 speed lives in ONNX Runtime.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-full-width">
+        <h2 class="title is-3">Speed, stated honestly</h2>
+        <div class="content">
+          <img src="./static/images/charts/speed_accuracy.png" alt="Speed vs accuracy chart"
+               style="width:80%; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12);">
+          <div class="table-container" style="margin-top:14px;">
+            <table class="table is-bordered is-striped is-narrow is-hoverable is-inline-block"
+                   style="font-size:0.9rem;">
+              <thead><tr><th>scenario</th><th>teensyvad</th><th>FlashVAD (published)</th><th>WebRTC</th></tr></thead>
+              <tbody>
+                <tr><td>model inference, single frame</td>
+                    <td><b>6.5 µs</b> (ONNX f32)</td><td>11.4 µs (native Accelerate)</td><td>2 µs (C ext)</td></tr>
+                <tr><td>full streaming path, as shipped</td>
+                    <td>63–66 µs / 20 ms (NumPy)</td>
+                    <td>~23 µs / 20 ms (compiled)</td><td><b>2 µs</b></td></tr>
+                <tr><td>offline, batched (20k frames)</td>
+                    <td><b>0.064 µs/frame</b> (ONNX int8)</td>
+                    <td>n/a — recurrent, cannot batch</td><td>n/a</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            We make one speed claim, precisely: <b>the fastest batched (offline)
+            inference we are aware of among open VADs</b> — 0.064&nbsp;µs/frame,
+            roughly 15,000× faster than real time. This is architectural, not magic: a
+            stateless MLP over a fixed 10-frame window treats an entire recording as
+            one matrix multiply, while recurrent VADs (Silero, FlashVAD, TEN) must run
+            hop-by-hop through time. In <i>streaming</i> mode, WebRTC's C extension
+            remains the floor (2 µs) and FlashVAD's compiled frontend beats our NumPy
+            one — though our ONNX model alone is faster per single frame than
+            FlashVAD's native figure. At telephony budgets every system here uses
+            &lt; 0.6% of a core; accuracy-per-KB, not speed, is the real axis.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Method in one paragraph</h2>
+        <div class="content has-text-justified">
+          <p>
+            Audio is mono 8&nbsp;kHz (the native rate of PSTN, G.711 and Asterisk's
+            <code>slin</code> — no upsampling to a 16&nbsp;kHz core). Each 25&nbsp;ms
+            frame every 10&nbsp;ms is Hann-windowed, FFT'd to 256 points, summed
+            through 20 mel triangles over 80–3800&nbsp;Hz, log-compressed, and
+            band-mean-subtracted — making features invariant to line gain, so the
+            model sees spectral <i>shape</i> only. First-order deltas concatenate to
+            40 dims/frame; 10 frames (100&nbsp;ms) flatten to the 400-dim input of a
+            3-layer MLP (48/24 hidden, 20,449 params) with sigmoid output. Training
+            targets come from Silero VAD run over synthetically mixed training audio
+            (LibriSpeech speech + ESC-50 noise + synthetic 7-talker babble + real AMI
+            room ambience, −5–20&nbsp;dB SNR, 40% G.711 µ-law round-trip). Decisions
+            run through hysteresis + 250&nbsp;ms hangover to emit speech_start /
+            speech_end events. The full feature spec is reimplementable from the
+            <a href="https://huggingface.co/Teensy/teensy-vad-1" target="_blank">v1 model card</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Limitations</h2>
+        <div class="content has-text-justified">
+          <p>
+            English read speech dominates training; music was absent (reads as
+            "activity"); 100&nbsp;ms context is short for unvoiced fricatives in noise.
+            Silero — the 87× larger teacher — still ranks best by AUC on both real
+            sets; our wins are the calibrated operating point on real rooms,
+            accuracy-per-KB, and batched throughput. TEN-set F1 values marked * are
+            threshold-tuned on that set and are upper bounds (FlashVAD's published
+            numbers share this caveat). Speed figures are from an Apple M2 Pro;
+            Celeron-class CPU estimates are engineering extrapolations, not
+            measurements.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-full-width">
+        <h2 class="title is-3">Artifacts</h2>
+        <div class="content">
+          <div class="columns is-multiline is-centered" style="max-width:900px; margin:auto;">
+            <div class="column is-half">
+              <a href="https://huggingface.co/Teensy/teensy-vad-1" target="_blank"
+                 class="button is-fullwidth is-dark is-outlined">
+                teensy-vad-1 · construction-labels baseline</a>
+            </div>
+            <div class="column is-half">
+              <a href="https://huggingface.co/Teensy/teensy-vad-2" target="_blank"
+                 class="button is-fullwidth is-dark is-outlined">
+                teensy-vad-2 · Silero-distilled</a>
+            </div>
+            <div class="column is-half">
+              <a href="https://huggingface.co/Teensy/teensy-vad-3" target="_blank"
+                 class="button is-fullwidth is-dark is-outlined">
+                teensy-vad-3 · scaled data + real-world hardened</a>
+            </div>
+            <div class="column is-half">
+              <a href="https://huggingface.co/Teensy/teensy-vad-v4" target="_blank"
+                 class="button is-fullwidth is-dark is-outlined">
+                teensy-vad-v4 · the 100-hour family (20k–100k + QAT)</a>
+            </div>
+          </div>
+          <p class="is-size-7 has-text-grey">
+            Every number on this page is reproducible: <code>scripts/compare_all.py</code>
+            (tables), <code>scripts/make_charts*.py</code> (charts),
+            <code>scripts/train_all.py</code> (full pipeline, resumable).
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Citation</h2>
+        <div class="content">
+<pre><code>@software{teensyvad2026,
+  title  = {teensyvad: Tiny Voice Activity Detectors for Telephony},
+  author = {Doharey, Pankaj and Teensy},
+  year   = {2026},
+  url    = {https://huggingface.co/Teensy},
+  note   = {Families v1--v4; 20k--100k parameters; 8 kHz native}
+}</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="container">
+    <div class="content has-text-centered">
+      <p>
+        Site template: <a href="https://github.com/nerfies/nerfies.github.io" target="_blank">Nerfies</a>.
+        Charts and numbers generated by the teensyvad reproducible benchmark suite.
+      </p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
