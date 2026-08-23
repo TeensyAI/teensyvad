@@ -37,7 +37,8 @@ VARIANTS = {
            ("teensy-v3-80k", "v3-80k"), ("teensy-v3-100k", "v3-100k"),
            ("teensy-v3-qat (int8)", "v3-qat")],
     "v4": [("teensy-v4 (20k)", "v4"), ("teensy-v4-40k", "v4-40k"),
-           ("teensy-v4-80k", "v4-80k"), ("teensy-v4-100k", "v4-100k")],
+           ("teensy-v4-80k", "v4-80k"), ("teensy-v4-100k", "v4-100k"),
+           ("teensy-v4-qat (int8)", "v4-qat")],
 }
 BASELINES = ["Silero VAD", "WebRTC VAD", "Energy VAD"]
 

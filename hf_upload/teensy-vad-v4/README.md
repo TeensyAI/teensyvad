@@ -148,14 +148,14 @@ Shared protocol (human-labelled audio, AMI-dev-calibrated operating
 points, AUC on raw probabilities — full appendix:
 [BENCHMARKS.md](https://huggingface.co/Teensy/teensy-vad-3/blob/main/BENCHMARKS.md)):
 
-| | v4 (20k) | **v4-80k** | v3-80k | Silero | WebRTC | Energy |
-|---|---|---|---|---|---|---|
-| params | 20,449 | 80,373 | 80,373 | 1,774,000 | ~6k | — |
-| TEN VAD set — F1 (best thr*) | 0.892 | **0.896** | 0.894 | 0.938 | n/a | — |
-| TEN VAD set — AUC | 0.871 | **0.880** | 0.877 | 0.952 | n/a | 0.670 |
-| AMI SDM — F1 (calibrated) | **0.884** | 0.880 | 0.882 | 0.714 | 0.842 | 0.592 |
-| AMI SDM — AUC | 0.861 | **0.862** | 0.861 | 0.894 | 0.760 | 0.658 |
-| µs / 20 ms chunk | 63 | 66 | 66 | 89 | 2 | 7 |
+| | v4 (20k) | v4-40k | **v4-80k** | v4-100k | v4-qat (int8) | v3-80k | Silero | WebRTC | Energy |
+|---|---|---|---|---|---|---|---|---|---|
+| params | 20,449 | 39,609 | 80,373 | 99,593 | 20,449 | 80,373 | 1,774,000 | ~6k | — |
+| TEN VAD set — F1 (best thr*) | 0.892 | 0.892 | **0.896** | 0.892 | 0.894 | 0.894 | 0.938 | n/a | — |
+| TEN VAD set — AUC | 0.871 | 0.875 | **0.880** | 0.875 | 0.876 | 0.877 | 0.952 | n/a | 0.670 |
+| AMI SDM — F1 (calibrated) | **0.884** | 0.883 | 0.880 | 0.882 | 0.884 | 0.882 | 0.714 | 0.842 | 0.592 |
+| AMI SDM — AUC | 0.861 | **0.862** | 0.862 | 0.861 | 0.862 | 0.861 | 0.894 | 0.760 | 0.658 |
+| µs / 20 ms chunk | 63 | 65 | 66 | 64 | 92 | 66 | 89 | 2 | 7 |
 
 \* tuned on that set — like-for-like with FlashVAD's published
 F1 0.889 / AUC 0.882: **v4-80k essentially matches FlashVAD's AUC
