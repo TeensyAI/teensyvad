@@ -46,7 +46,13 @@ class LazyWindows:
         self.F = F if isinstance(F, np.memmap) else np.ascontiguousarray(F, dtype=np.float32)
         self.y = np.asarray(y, dtype=np.float32)
         self.K = K
+        self._pool: np.ndarray | None = None
         self._sw = np.lib.stride_tricks.sliding_window_view(self.F, K, axis=0)
+
+    def set_sample_pool(self, pool: np.ndarray) -> None:
+        """Optional frame-index pool for training draws (e.g. disagreement
+        oversampling). Eval still runs over the full sequence."""
+        self._pool = np.asarray(pool, dtype=np.int64)
 
     def __len__(self):
         return len(self.F) - self.K + 1
@@ -98,8 +104,10 @@ def train_float(model, tr: LazyWindows, va: LazyWindows, *, epochs=30, bs=2048,
             "params": {k: v.copy() for k, v in model.p.items()}}
     for ep in range(1, epochs + 1):
         losses = []
-        for indices in shuffled_block_batches(rng, len(tr), bs):
-            Xb, yb = tr.batch(indices)
+        pool = tr._pool
+        for positions in shuffled_block_batches(rng, len(pool) if pool is not None else len(tr), bs):
+            idx = positions if pool is None else pool[positions]
+            Xb, yb = tr.batch(idx)
             loss, grads = model.loss_and_grads(Xb, yb)
             opt.step(model.p, grads)
             losses.append(loss)
@@ -124,8 +132,10 @@ def qat_finetune(model, tr: LazyWindows, va: LazyWindows, *, epochs=10, bs=2048,
     best = {"f1": -1, "params": {k: v.copy() for k, v in model.p.items()}, "ep": -1}
     for ep in range(1, epochs + 1):
         losses = []
-        for indices in shuffled_block_batches(rng, len(tr), bs):
-            Xb, yb = tr.batch(indices)
+        pool = tr._pool
+        for positions in shuffled_block_batches(rng, len(pool) if pool is not None else len(tr), bs):
+            idx = positions if pool is None else pool[positions]
+            Xb, yb = tr.batch(idx)
             loss, grads = qat_loss_and_grads(model, Xb, yb, ALL_Q)
             opt.step(model.p, grads)
             losses.append(loss)
@@ -156,6 +166,11 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=23)
     ap.add_argument("--batch-size", type=int, default=2048,
                     help="training batch size; reduce when memory constrained")
+    ap.add_argument("--context", type=int, default=K,
+                    help="context frames stacked per window (K); 10 = 100 ms")
+    ap.add_argument("--oversample-disagreement", action="store_true",
+                    help="oversample frames where Silero teacher and hard "
+                         "construction labels disagree (hard-example mining)")
     args = ap.parse_args()
 
     t0 = time.time()
@@ -166,8 +181,19 @@ def main() -> None:
         # v4 memmap mode: float16 features + teacher labels on disk
         Ftr = np.load(args.data / "F.npy", mmap_mode="r")
         ytr = np.asarray(np.load(args.data / "yteach.npy"), dtype=np.float32)
-        tr = LazyWindows(Ftr, ytr, K)
-        print(f"(memmap mode: F.npy {Ftr.shape} float16)")
+        tr = LazyWindows(Ftr, ytr, args.context)
+        print(f"(memmap mode: F.npy {Ftr.shape} float16, context {args.context})")
+        if args.oversample_disagreement:
+            ysoft = np.asarray(np.load(args.data / "ysoft.npy"), dtype=np.float32)
+            yhard = np.asarray(np.load(args.data / "y.npy"), dtype=np.float32)
+            n = min(len(ysoft), len(yhard), len(ytr))
+            disagree = np.flatnonzero(np.abs(ysoft[:n] - yhard[:n]) > 0.25)
+            rng0 = np.random.default_rng(args.seed)
+            extra = rng0.choice(disagree, size=min(len(disagree) * 2, 4_000_000),
+                                replace=False) if len(disagree) else disagree
+            tr.set_sample_pool(np.concatenate([np.arange(n), extra]))
+            print(f"(hard-example pool: {n:,} frames + {len(extra):,} "
+                  f"disagreement repeats)")
     else:
         ztr = np.load(args.data / "train.distill.npz")
         tr = LazyWindows(ztr["F"], ztr["y"], K)
@@ -180,15 +206,15 @@ def main() -> None:
     thr = 0.5
 
     if args.stage in ("all", "float"):
-        model = MLP(sizes=(K * tr.F.shape[1], *args.hidden, 1), seed=args.seed)
+        model = MLP(sizes=(args.context * tr.F.shape[1], *args.hidden, 1), seed=args.seed)
         # input stats from a 1M-frame chunk, float64 accumulation (works
         # for both float32 arrays and float16 memmaps)
         chunk = np.asarray(tr.F[:1_000_000], dtype=np.float64)
         mean40 = chunk.mean(0)
         std40 = np.maximum(chunk.std(0), 1e-3)
         del chunk
-        model.in_mean = np.tile(mean40, K).astype(np.float32)
-        model.in_std = np.tile(std40, K).astype(np.float32)
+        model.in_mean = np.tile(mean40, args.context).astype(np.float32)
+        model.in_std = np.tile(std40, args.context).astype(np.float32)
         # lazy training doesn't auto-fit stats (train() does); we just did.
         model, best = train_float(model, tr, va, epochs=args.epochs, bs=args.batch_size,
                                   thr=thr, seed=args.seed)
