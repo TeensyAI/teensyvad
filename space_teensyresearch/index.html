@@ -50,10 +50,10 @@
           <div class="column has-text-centered">
             <div class="publication-links">
               <span class="link-block">
-                <a href="https://huggingface.co/Teensy/teensy-vad-v4" target="_blank"
+                <a href="https://huggingface.co/Teensy/teensy-vad-v5" target="_blank"
                    class="external-link button is-normal is-rounded is-dark">
                   <span class="icon"><i class="fas fa-box-open"></i></span>
-                  <span>Models (v1–v4)</span>
+                  <span>Models (v5)</span>
                 </a>
               </span>
               <span class="link-block">
@@ -88,26 +88,32 @@
             We present <b>TeensyVAD</b> <i>(TeensyVAD by VoxLogic)</i>, a family of voice activity detectors sized
             20,449–99,593 parameters — small enough to read end-to-end in one sitting,
             implemented in pure NumPy with hand-written backpropagation, and native to
-            8&nbsp;kHz telephony audio (no resampling anywhere). Across four training
+            8&nbsp;kHz telephony audio (no resampling anywhere). Across five training
             generations we study what matters at this scale: (1)&nbsp;<b>labels</b> —
             distilling frame targets from Silero VAD tightens onset/offset boundaries
             by 2–3× over synthetic construction labels; (2)&nbsp;<b>data</b> — capacity
             only pays when data scales with it (families are flat 20k→100k on 1M frames,
             but improve monotonically on the 37.9M frames of the full 100&nbsp;h
-            LibriSpeech train-clean-100); and (3)&nbsp;<b>quantization</b> —
+            LibriSpeech train-clean-100); (3)&nbsp;<b>quantization</b> —
             quantization-aware training recovers accuracy over post-training
             quantization at identical size, yielding a <b>28&nbsp;KB int8 model that
-            outperforms its 87&nbsp;KB float32 parent</b>. On human-labelled real-world
-            audio — the TEN VAD public set and AMI SDM meetings — the best 100-hour
-            model reaches <b>0.880&nbsp;ROC-AUC on TEN</b> (FlashVAD v0.1 publishes
-            0.882 with 2.3× the parameters) and <b>AMI frame F1&nbsp;0.886 vs
-            Silero's stock 0.714</b> (the 1.77M-parameter teacher's default threshold
-            misses 44% of speech in real rooms). Offline batched inference runs at
-            <b>0.064&nbsp;µs/frame</b> with ONNX Runtime int8 — the fastest figure we
-            are aware of among open VADs in this mode, enabled by the stateless-MLP
-            design (recurrent VADs cannot batch through time). Everything — code,
-            weights, evaluation harness, and this site's charts — is reproducible from
-            the linked repositories.
+            outperforms its 87&nbsp;KB float32 parent</b>; and (4)&nbsp;<b>license</b> —
+            the newest generation, <b>teensy-v5</b>, retrains the v4 recipe on
+            <b>MUSAN noise (CC&nbsp;BY&nbsp;4.0)</b> instead of the NC-licensed share of
+            ESC-50, making the weights <b>commercial-safe</b> with the architecture
+            unchanged. On human-labelled real-world audio — the TEN VAD public set and
+            AMI SDM meetings — v5 is the family's best: the 80k model reaches
+            <b>0.8877&nbsp;ROC-AUC on TEN</b> (past v4's 0.880 and FlashVAD v0.1's
+            published 0.882, which uses 2.3× the parameters), and the 40k model posts
+            <b>AMI frame F1&nbsp;0.8853 vs Silero's stock 0.714</b> — the best
+            room-audio F1 of any generation at half v4-80k's size (the
+            1.77M-parameter teacher's default threshold misses 44% of speech in real
+            rooms). Offline batched inference runs at <b>0.064&nbsp;µs/frame</b> with
+            ONNX Runtime int8, unchanged from v4 at 63–64&nbsp;µs per 20&nbsp;ms
+            streaming chunk — the fastest figure we are aware of among open VADs in
+            this mode, enabled by the stateless-MLP design (recurrent VADs cannot
+            batch through time). Everything — code, weights, evaluation harness, and
+            this site's charts — is reproducible from the linked repositories.
           </p>
         </div>
       </div>
@@ -129,8 +135,8 @@
                style="width:100%; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12);">
           <p class="is-size-7 has-text-grey" style="margin-top:6px;">
             Best size per family vs public baselines. Silero ranks best by AUC (87×
-            larger model); teensy-v3/v4 win the calibrated operating point on AMI and
-            match FlashVAD's published TEN numbers at a fraction of the size.
+            larger model); teensy-v5 wins the calibrated operating point on AMI and
+            passes FlashVAD's published TEN AUC at a fraction of the size.
           </p>
 
           <div class="table-container" style="margin-top:18px;">
@@ -148,12 +154,20 @@
                     <td>0.890</td><td>0.868</td><td>0.880</td><td>0.848</td><td>63</td></tr>
                 <tr><td>teensy-v3-80k</td><td>80,373</td><td>321</td>
                     <td>0.894</td><td>0.877</td><td>0.882</td><td>0.861</td><td>66</td></tr>
+                <tr class="is-selected"><td><b>teensy-v5 (20k)</b></td><td>20,449</td><td>87</td>
+                    <td>0.8953</td><td>0.8760</td><td>0.8836</td><td>0.8579</td><td>64</td></tr>
+                <tr class="is-selected"><td><b>teensy-v5-40k</b></td><td>39,609</td><td>162</td>
+                    <td>0.8963</td><td>0.8810</td><td><b>0.8853</b></td><td>0.8620</td><td>64</td></tr>
+                <tr class="is-selected"><td><b>teensy-v5-80k</b></td><td>80,373</td><td>321</td>
+                    <td><b>0.9016</b></td><td><b>0.8877</b></td><td>0.8845</td><td>0.8622</td><td>63</td></tr>
+                <tr class="is-selected"><td><b>teensy-v5-100k</b></td><td>99,593</td><td>396</td>
+                    <td>0.9008</td><td>0.8865</td><td>0.8823</td><td>0.8596</td><td>63</td></tr>
                 <tr><td>teensy-v4 (20k)</td><td>20,449</td><td>87</td>
                     <td>0.892</td><td>0.871</td><td>0.884</td><td>0.861</td><td>63</td></tr>
                 <tr><td>teensy-v4-40k</td><td>39,609</td><td>161</td>
                     <td>0.892</td><td>0.875</td><td>0.883</td><td>0.862</td><td>65</td></tr>
                 <tr class="is-selected"><td><b>teensy-v4-80k</b></td><td>80,373</td><td>321</td>
-                    <td><b>0.896</b></td><td><b>0.880</b></td><td>0.880</td><td>0.862</td><td>66</td></tr>
+                    <td>0.896</td><td>0.880</td><td>0.880</td><td>0.862</td><td>66</td></tr>
                 <tr><td>teensy-v4-100k</td><td>99,593</td><td>396</td>
                     <td>0.892</td><td>0.875</td><td>0.882</td><td>0.861</td><td>64</td></tr>
                 <tr><td>teensy-v4-qat (int8)</td><td>20,449</td><td><b>28</b></td>
@@ -178,6 +192,32 @@
             published TEN numbers (F1 0.889 / AUC 0.882 / FAR 26.3%). AMI F1 at
             AMI-dev-calibrated thresholds. Speed = full streaming path, median
             µs per 20 ms telephony chunk, one core of an Apple M2 Pro.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-full-width">
+        <h2 class="title is-3">The v5 generation: commercial-safe, same accuracy</h2>
+        <div class="content">
+          <img src="./static/images/charts/chart_v5.png" alt="v5 family comparison chart"
+               style="width:100%; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12);">
+          <p style="max-width:820px; margin:auto;">
+            <b>teensy-v5</b> is the current release: an identical architecture and
+            training recipe to v4, with one change — training noise from
+            <b>MUSAN (CC&nbsp;BY&nbsp;4.0)</b> replaces the NC-licensed share of
+            ESC-50, so the weights are fully <b>commercial-safe</b>. Nothing was
+            traded for it: <b>teensy-v5-80k</b> sets a new family record of
+            <b>0.8877 TEN AUC</b> (v4-80k 0.880, FlashVAD v0.1 0.882),
+            <b>teensy-v5-40k</b> posts the best room-audio F1 of any generation
+            (<b>AMI F1 0.8853</b>) at half v4-80k's size, and speed is unchanged at
+            63–64&nbsp;µs per 20&nbsp;ms streaming chunk. Thresholds were calibrated
+            on AMI dev; all sizes converged on thr_hi&nbsp;0.10. Weights, float
+            npz&nbsp;×4, ONNX float&nbsp;×4 and ONNX int8&nbsp;×4 (22&nbsp;KB int8
+            for the 20k) are on the
+            <a href="https://huggingface.co/Teensy/teensy-vad-v5" target="_blank">teensy-vad-v5 model card</a>
+            (CC&nbsp;BY&nbsp;4.0 · © 2026 Pankaj Doharey / Metacritical).
           </p>
         </div>
       </div>
@@ -329,6 +369,11 @@
         <div class="content">
           <div class="columns is-multiline is-centered" style="max-width:900px; margin:auto;">
             <div class="column is-half">
+              <a href="https://huggingface.co/Teensy/teensy-vad-v5" target="_blank"
+                 class="button is-fullwidth is-dark is-outlined">
+                teensy-vad-v5 · commercial-safe MUSAN retrain (CC BY 4.0) — current release</a>
+            </div>
+            <div class="column is-half">
               <a href="https://huggingface.co/Teensy/teensy-vad-1" target="_blank"
                  class="button is-fullwidth is-dark is-outlined">
                 teensy-vad-1 · construction-labels baseline</a>
@@ -367,7 +412,7 @@
   author = {Doharey, Pankaj (VoxLogic)},
   year   = {2026},
   url    = {https://huggingface.co/Teensy},
-  note   = {TeensyVAD by VoxLogic — families v1--v4; 20k--100k parameters; 8 kHz native; contact: pankaj@voxlogic.ai}
+  note   = {TeensyVAD by VoxLogic — families v1--v5; 20k--100k parameters; 8 kHz native; contact: pankaj@voxlogic.ai}
 }</code></pre>
         </div>
       </div>
