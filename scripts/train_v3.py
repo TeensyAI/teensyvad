@@ -51,8 +51,12 @@ class LazyWindows:
 
     def set_sample_pool(self, pool: np.ndarray) -> None:
         """Optional frame-index pool for training draws (e.g. disagreement
-        oversampling). Eval still runs over the full sequence."""
-        self._pool = np.asarray(pool, dtype=np.int64)
+        oversampling). Eval still runs over the full sequence. Indices are
+        clamped to valid window starts — labels read y[idx + K - 1]."""
+        pool = np.asarray(pool, dtype=np.int64)
+        valid_max = len(self.F) - self.K
+        pool = pool[(pool >= 0) & (pool <= valid_max)]
+        self._pool = np.unique(pool)
 
     def __len__(self):
         return len(self.F) - self.K + 1
@@ -198,7 +202,7 @@ def main() -> None:
         ztr = np.load(args.data / "train.distill.npz")
         tr = LazyWindows(ztr["F"], ztr["y"], K)
     zva = np.load(Path("data/prepared/val.distill.npz"))
-    va = LazyWindows(zva["F"], zva["y"], K)
+    va = LazyWindows(zva["F"], zva["y"], args.context)
     print(f"train {len(tr):,} windows  val {len(va):,}  "
           f"({time.time()-t0:.0f}s to load)")
 
