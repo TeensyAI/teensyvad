@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.teensyvad.audiosocket</string>
+  <key>WorkingDirectory</key><string>/opt/teensyvad</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/teensyvad/.venv/bin/python</string>
+    <string>scripts/audiosocket_server.py</string>
+    <string>--port</string><string>9092</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+</dict>
+</plist>

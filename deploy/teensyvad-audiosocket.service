@@ -1,0 +1,17 @@
+# systemd unit — Asterisk host (Linux), Asterisk >= 18 with chan_audiosocket
+[Unit]
+Description=teensyvad AudioSocket VAD server
+After=network.target asterisk.service
+
+[Service]
+Type=simple
+# install the project to /opt/teensyvad first (see deploy/install.sh)
+WorkingDirectory=/opt/teensyvad
+ExecStart=/opt/teensyvad/.venv/bin/python scripts/audiosocket_server.py --port 9092
+Restart=on-failure
+RestartSec=2
+User=asterisk
+Group=asterisk
+
+[Install]
+WantedBy=multi-user.target
