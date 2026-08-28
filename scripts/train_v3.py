@@ -36,14 +36,14 @@ class LazyWindows:
     batch materialises only its own windows — never the full matrix.
     """
 
-    def __init__(self, F: np.ndarray, y: np.ndarray, K: int):
-        if isinstance(F, np.memmap):
-            # RAM-resident float16 (3 GB for the v5 set): float32
-            # materialisation doubled that to 6 GB and thrashed a 16 GB
-            # machine; pure on-disk gather thrashed on mmap page faults.
-            self.F = np.array(F)                # one sequential read, fp16
-        else:
-            self.F = np.ascontiguousarray(F, dtype=np.float32)
+    def __init__(self, F: np.ndarray, y: np.ndarray, K: int,
+                 *, memmap_cache_frames: int = 0):
+        # Keep large training sets memory-mapped by default.  This avoids
+        # duplicating a 2.8 GB float16 F.npy in RAM on developer machines.
+        # Batch() materialises only its own K×40 window block as float32.
+        # A small sequential warm cache can be requested by callers, but it
+        # is deliberately opt-in instead of forcing an OOM-prone full copy.
+        self.F = F if isinstance(F, np.memmap) else np.ascontiguousarray(F, dtype=np.float32)
         self.y = np.asarray(y, dtype=np.float32)
         self.K = K
         self._sw = np.lib.stride_tricks.sliding_window_view(self.F, K, axis=0)
@@ -140,6 +140,8 @@ def main() -> None:
     ap.add_argument("--qat-epochs", type=int, default=10)
     ap.add_argument("--hidden", type=int, nargs=2, default=HIDDEN)
     ap.add_argument("--seed", type=int, default=23)
+    ap.add_argument("--batch-size", type=int, default=2048,
+                    help="training batch size; reduce when memory constrained")
     args = ap.parse_args()
 
     t0 = time.time()
@@ -174,12 +176,13 @@ def main() -> None:
         model.in_mean = np.tile(mean40, K).astype(np.float32)
         model.in_std = np.tile(std40, K).astype(np.float32)
         # lazy training doesn't auto-fit stats (train() does); we just did.
-        model, best = train_float(model, tr, va, epochs=args.epochs, thr=thr, seed=args.seed)
+        model, best = train_float(model, tr, va, epochs=args.epochs, bs=args.batch_size,
+                                  thr=thr, seed=args.seed)
         meta = dict(sr=8000, n_mels=20, win_ms=25.0, hop_ms=10.0, n_fft=256,
                     fmin=80.0, fmax=3800.0, deltas=True, context=K,
                     thr_hi=0.5, thr_lo=0.3, hangover_ms=250.0, on_frames=3,
                     arch="mlp", hidden=args.hidden,
-                    trained_with="scripts/train_v3.py", data="prepared_v3",
+                    trained_with="scripts/train_v3.py", data=args.data.name,
                     val_f1=round(float(best["f1"]), 4),
                     val_auc=round(float(best["auc"]), 4))
         model.save(args.out, extra_meta=meta)
@@ -190,7 +193,8 @@ def main() -> None:
         src = args.out if args.out.exists() else None
         assert src is not None, "run float stage first"
         m = load_any(src)
-        m = qat_finetune(m, tr, va, epochs=args.qat_epochs, thr=thr, seed=24)
+        m = qat_finetune(m, tr, va, epochs=args.qat_epochs, bs=args.batch_size,
+                         thr=thr, seed=24)
         qm = QuantizedMLP(list(m.sizes), ALL_Q).quantize_from(m)
         meta = dict(m.meta)
         qm.save(args.out_qat, extra_meta={**meta, "qat": True})
