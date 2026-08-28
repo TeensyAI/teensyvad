@@ -37,7 +37,13 @@ class LazyWindows:
     """
 
     def __init__(self, F: np.ndarray, y: np.ndarray, K: int):
-        self.F = np.ascontiguousarray(F, dtype=np.float32)
+        if isinstance(F, np.memmap):
+            # RAM-resident float16 (3 GB for the v5 set): float32
+            # materialisation doubled that to 6 GB and thrashed a 16 GB
+            # machine; pure on-disk gather thrashed on mmap page faults.
+            self.F = np.array(F)                # one sequential read, fp16
+        else:
+            self.F = np.ascontiguousarray(F, dtype=np.float32)
         self.y = np.asarray(y, dtype=np.float32)
         self.K = K
         self._sw = np.lib.stride_tricks.sliding_window_view(self.F, K, axis=0)

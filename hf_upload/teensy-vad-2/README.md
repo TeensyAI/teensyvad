@@ -171,10 +171,16 @@ card — float variants differ only in hidden-layer size (88/48, 164/88,
 | name | file | params | KB | role |
 |---|---|---|---|---|
 | **teensy-v2** | `teensy-v2.npz` | 20,449 | 87 | the default — distilled 20k, tightest boundaries |
+| teensy-v2-soft | `teensy-v2-soft.npz` | 20,449 | 87 | soft-label variant (teacher probabilities as targets; val AUC 0.929 vs 0.922) |
 | teensy-v2-40k | `teensy-v2-40k.npz` | 39,609 | 162 | capacity probe |
 | teensy-v2-80k | `teensy-v2-80k.npz` | 80,373 | 321 | capacity probe |
 | teensy-v2-100k | `teensy-v2-100k.npz` | 99,593 | 396 | capacity probe |
 | teensy-v2-qat | `teensy-v2-qat.npz` | 20,449 | **28** | int8 QAT — smallest accurate artifact |
+| teensy-v2-int8 | `teensy-v2-int8.npz` | 20,449 | 28 | full PTQ int8 (99.72% agreement with float) |
+| teensy-v2-int8sel | `teensy-v2-int8sel.npz` | 20,449 | 28 | selective PTQ (all layers passed sensitivity) |
+| teensy-v2-wide | `teensy-v2-wide.npz` | 43,201 | 176 | wide 43k (96/48) — bake-off capacity probe |
+| teensy-v2-wide-qat | `teensy-v2-wide-qat.npz` | 43,201 | 51 | wide QAT — the bake-off's accuracy champion (F1 0.8565) |
+| teensy-v2-wide-int8 | `teensy-v2-wide-int8.npz` | 43,201 | 51 | wide PTQ |
 
 ONNX exports (float32 + dynamic int8) are provided for the 20k model.
 

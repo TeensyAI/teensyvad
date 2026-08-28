@@ -198,3 +198,44 @@ def build_ambience_pool(ami_wav_dir: Path, ami_manual_dir: Path, cache_root: Pat
             n_saved += 1
     done_marker.write_text(f"ok {n_saved}")
     return load_pool(sorted(out_dir.glob("*.wav")))
+
+
+def build_musan_pool(musan_root: Path, cache_root: Path,
+                     subsets: tuple[str, ...] = ("noise", "music"),
+                     exclude_music: bool = True) -> list[np.ndarray]:
+    """MUSAN corpus (OpenSLR 17, CC BY 4.0) → commercial-safe noise pool.
+
+    Drop-in replacement for the ESC-50 pool: MUSAN's `noise` subset
+    (ambient/machinery/free-sound effects) covers the same acoustic
+    ground as ESC-50's environmental categories, and its `music` subset
+    adds the one reality ESC-50 never had (background music from radios,
+    hold music, cafés).  Set exclude_music=True to keep training parity
+    with v3/v4 (model was never music-aware); flip it for v5 if music
+    rejection is a goal.
+
+    Unlike ESC-50 there is no human-vocal exclusion to apply — MUSAN
+    vocals live in the `speech` subset, which we do NOT use (babble is
+    already synthesised from disjoint LibriSpeech talkers).
+    """
+    cache_dir = cache_root / "musan"
+    done_marker = cache_dir / "DONE"
+    if done_marker.exists():
+        return load_pool(sorted((cache_root / "musan_src").glob("*.wav")))
+    wanted = ("noise",) if exclude_music else tuple(subsets)
+    files: list[Path] = []
+    for sub in wanted:
+        d = musan_root / sub
+        if not d.is_dir():
+            raise FileNotFoundError(f"MUSAN subset missing: {d}")
+        files.extend(sorted(d.rglob("*.wav")))
+    if not files:
+        raise FileNotFoundError(f"no wav files under {musan_root}/{','.join(wanted)}")
+    # converted 8 kHz wavs live in musan_src (that IS the cache — same
+    # pattern as the other *_src dirs); filter by min length there.
+    cache_dir = cache_root / "musan_src"
+    if not done_marker.exists():
+        wavs = mass_convert(files, cache_dir)
+        pool = load_pool(wavs)
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        done_marker.write_text(f"ok {len(pool)} clips from {len(files)} files")
+    return load_pool(sorted(cache_dir.glob("*.wav")))

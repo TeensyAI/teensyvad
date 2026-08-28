@@ -27,7 +27,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from noise_pools import (build_ambience_pool, build_babble_pool,  # noqa: E402
-                         build_esc50_pool, sample_crop)
+                         build_esc50_pool, build_musan_pool, sample_crop)
 from teensyvad.audio import read_wav, telephony_roundtrip, write_wav  # noqa: E402
 from teensyvad.features import LogMel  # noqa: E402
 from prepare_data import rms, trim_silence  # noqa: E402
@@ -36,6 +36,8 @@ SR = 8000
 SNRS_DB = [None, 20, 15, 10, 5, 0, -5]
 # noise source mix per example (weights sum 1)
 NOISE_MIX = {"esc50": 0.40, "babble": 0.40, "ambience": 0.20}
+# with --musan, the musan pool replaces esc50 1:1 (same 0.40 weight);
+# babble+ambience are already commercial-safe (LibriSpeech / AMI, CC BY 4.0)
 
 
 def mass_convert(files, cache, workers=8):
@@ -85,6 +87,10 @@ def main() -> None:
     ap.add_argument("--out", type=Path, default=Path("data/prepared_v3"))
     ap.add_argument("--libri100", type=Path, default=Path("data/raw/LibriSpeech/train-clean-100"))
     ap.add_argument("--esc50", type=Path, default=Path("data/raw/ESC-50-master"))
+    ap.add_argument("--musan", type=Path, default=None,
+                    help="MUSAN root (OpenSLR 17). When set, MUSAN noise "
+                         "replaces ESC-50 as the environmental noise pool — "
+                         "commercial-safe training data (CC BY 4.0).")
     ap.add_argument("--ami-wav", type=Path, default=Path("data/raw/ami/wav"))
     ap.add_argument("--ami-manual", type=Path, default=Path("data/raw/ami/manual"))
     ap.add_argument("--cache", type=Path, default=Path("data/prepared_v3/wav_cache"))
@@ -100,23 +106,28 @@ def main() -> None:
     (args.out / "audio").mkdir(parents=True, exist_ok=True)
 
     print("building noise pools …")
-    pools = {
-        "esc50": build_esc50_pool(args.esc50, Path("data/noise_pools"), {1, 2, 3}),
-        # AMI ambience ONLY from the 3 calibration meetings — the other 8
-        # meetings are the eval set (eval_realworld.py) and must stay unseen.
-        "ambience": build_ambience_pool(
-            args.ami_wav, args.ami_manual, Path("data/noise_pools"),
-            meetings=["ES2002a", "IS1000a", "TS3003a"],
-            max_chunks_per_meeting=12),
-    }
-    print(f"  esc50: {len(pools['esc50'])} clips | ambience: {len(pools['ambience'])} clips")
+    env_name = "musan" if args.musan else "esc50"
+    pools = {}
+    if args.musan:
+        pools["musan"] = build_musan_pool(args.musan, Path("data/noise_pools"))
+    else:
+        pools["esc50"] = build_esc50_pool(args.esc50, Path("data/noise_pools"), {1, 2, 3})
+    # AMI ambience ONLY from the 3 calibration meetings — the other 8
+    # meetings are the eval set (eval_realworld.py) and must stay unseen.
+    pools["ambience"] = build_ambience_pool(
+        args.ami_wav, args.ami_manual, Path("data/noise_pools"),
+        meetings=["ES2002a", "IS1000a", "TS3003a"],
+        max_chunks_per_meeting=12)
+    print(f"  {env_name}: {len(pools[env_name])} clips | ambience: {len(pools['ambience'])} clips")
+    NOISE_MIX.clear()   # mutate module global — build_example's noise() reads it
+    NOISE_MIX.update({env_name: 0.40, "babble": 0.40, "ambience": 0.20})
     try:
         pools["babble"] = build_babble_pool(args.libri100, Path("data/noise_pools"),
                                             n_talkers=7, n_mixes=600)
         print(f"  babble: {len(pools['babble'])} clips")
     except Exception as e:
-        print(f"  !! babble unavailable ({e}); proceeding with esc50+ambience")
-        NOISE_MIX.update({"esc50": 0.6, "babble": 0.0, "ambience": 0.4})
+        print(f"  !! babble unavailable ({e}); proceeding with {env_name}+ambience")
+        NOISE_MIX.update({env_name: 0.6, "babble": 0.0, "ambience": 0.4})
 
     utts = collect_utt_speakers(args.libri100, args.utts, rng)
     print(f"speech: {len(utts)} utterances from train-clean-100")

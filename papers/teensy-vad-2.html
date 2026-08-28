@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="teensy-vad-2: Silero-teacher distillation into the same 20,449-parameter (87 KB) telephony VAD — tightens speech boundaries 2–3× over construction labels and matches FlashVAD's published TEN F1 with 2.3× fewer parameters.">
+  <meta name="keywords" content="VAD, voice activity detection, telephony, distillation, on-device, quantization">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TeensyVAD-v2: A 20k-Parameter Voice Activity Detector Distilled from Silero VAD — TeensyVAD by VoxLogic</title>
+
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro"
+        rel="stylesheet">
+
+  <link rel="stylesheet" href="../static/css/bulma.min.css">
+  <link rel="stylesheet" href="../static/css/bulma-carousel.min.css">
+  <link rel="stylesheet" href="../static/css/bulma-slider.min.css">
+  <link rel="stylesheet" href="../static/css/fontawesome.all.min.css">
+  <link rel="stylesheet" href="../static/css/index.css">
+  <link rel="icon" href="../static/images/favicon.svg">
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script defer src="../static/js/fontawesome.all.min.js"></script>
+  <script src="../static/js/bulma-carousel.min.js"></script>
+  <script src="../static/js/bulma-slider.min.js"></script>
+  <script src="../static/js/index.js"></script>
+</head>
+<body>
+
+<section class="hero">
+  <div class="hero-body">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column has-text-centered">
+          <h1 class="title is-1 publication-title">
+            TeensyVAD-v2: A 20k-Parameter Voice Activity Detector Distilled from Silero VAD
+          </h1>
+          <div class="is-size-5 publication-authors">
+            <span class="author-block">
+              <a href="mailto:pankaj@voxlogic.ai">Pankaj Doharey</a><sup>1</sup>
+            </span>
+          </div>
+
+          <div class="is-size-5 publication-authors">
+            <span class="author-block"><sup>1</sup><a href="mailto:pankaj@voxlogic.ai">VoxLogic</a> — TeensyVAD by VoxLogic ·
+              <a href="mailto:pankaj@voxlogic.ai">pankaj@voxlogic.ai</a></span>
+          </div>
+
+          <div class="column has-text-centered">
+            <div class="publication-links">
+              <span class="link-block">
+                <a href="https://huggingface.co/Teensy/teensy-vad-2" target="_blank"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon"><i class="fas fa-box-open"></i></span>
+                  <span>Models</span>
+                </a>
+              </span>
+              <span class="link-block">
+                <a href="teensy-vad-2.md" target="_blank"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon"><i class="far fa-file-alt"></i></span>
+                  <span>Paper (Markdown)</span>
+                </a>
+              </span>
+              <span class="link-block">
+                <a href="https://metacritical.github.io/teensyvad/" target="_blank"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon"><i class="fas fa-home"></i></span>
+                  <span>Family Index</span>
+                </a>
+              </span>
+              <span class="link-block">
+                <a href="https://github.com/metacritical/teensyvad" target="_blank"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon"><i class="fab fa-github"></i></span>
+                  <span>GitHub</span>
+                </a>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Abstract</h2>
+        <div class="content has-text-justified">
+          <p>
+            <b>teensy-vad-2</b> keeps the teensyvad-family architecture
+            (<b>20,449 parameters, 87&nbsp;KB</b>, pure NumPy) but replaces
+            construction labels with frame-level labels produced by Silero VAD — a
+            knowledge-distillation step that fixes the loose speech boundaries
+            inherited from v1's placement-based labels. The teacher disagreed with
+            the construction labels on 11.6% of frames; the student tightens onsets
+            from −432 ms to −172 ms and offsets from +718 ms to +478 ms. On
+            human-labelled audio it reaches TEN VAD set F1 0.890 at a best threshold
+            — like-for-like with FlashVAD's published 0.889 with 2.3× fewer
+            parameters — and out-ranks its own teacher on AMI (F1 0.880 vs 0.714).
+            Quantization is essentially free: PTQ ΔAUC 0.0000 with 99.7% decision
+            agreement, and QAT adds +0.9 F1 points over PTQ at 28&nbsp;KB.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Introduction</h2>
+        <div class="content has-text-justified">
+          <p>
+            In the family timeline, teensy-vad-1 proved that a 20k-parameter MLP can
+            decisively beat energy-based VAD, but its construction labels know
+            <i>where the utterance was placed</i>, not where speech actually starts
+            and stops: intra-utterance pauses, breathy tails and lead-in silence
+            were labelled "speech", giving onsets ~430 ms early and offsets ~718 ms
+            late. teensy-vad-2 solved this boundary problem by distillation: Silero
+            VAD (~2M-parameter teacher) relabelled every frame of the training
+            mixtures, and the same tiny student learned where speech <i>actually</i>
+            is. On the test split the teacher disagreed with construction labels on
+            11.6% of frames — 9.2% of them pauses/tails mislabelled "speech" —
+            silent label contamination that had capped v1. For telephony, where
+            barge-in latency and silence-triggered stopping depend on boundary
+            timing, boundaries are the product; the hard-label student produced
+            tighter boundaries than the soft variant and is the default.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Data</h2>
+        <div class="content has-text-justified">
+          <ul>
+            <li>Same mixtures as v1: LibriSpeech <code>dev-clean</code> speech
+                (CC BY 4.0) + ESC-50 noise (CC BY-NC-SA 3.0), SNR 0–20 dB, 40% of
+                clips round-tripped through G.711 µ-law; ~1M frames.</li>
+            <li><b>Labels:</b> Silero VAD (MIT) run at 8 kHz on every mixture frame —
+                soft probabilities interpolated to the 10 ms grid. Two students were
+                trained: hard 0/1 teacher labels (this model, the default) and soft
+                probabilities (slightly higher validation AUC, 0.929 vs 0.922, but
+                looser event boundaries).</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Method</h2>
+        <div class="content has-text-justified">
+          <p>
+            The architecture is identical to teensy-vad-1: a 3-layer MLP,
+            400 → 48 → 24 → 1 (ReLU, sigmoid head), trained with hand-written
+            backprop + Adam. The feature frontend is likewise unchanged: 8 kHz
+            native (no resampling anywhere), 25 ms windows / 10 ms hop, 20 mel bands
+            over 80–3800 Hz, log-mel with per-frame band-mean subtraction,
+            first-order deltas, and a 10-frame (100 ms) context stack — 400 input
+            dimensions standardised with stored statistics. Streaming decisions use
+            the family's hysteresis + hangover state machine. The distillation
+            difference is supervisory only: the training targets are the teacher's
+            frame labels rather than construction labels, and event thresholds were
+            calibrated at event level on validation data.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-full-width">
+        <h2 class="title is-3">Results</h2>
+        <div class="content">
+          <p>
+            Benchmarks (frame F1 / AUC):
+          </p>
+          <div class="table-container">
+            <table class="table is-bordered is-striped is-narrow is-hoverable is-fullwidth"
+                   style="font-size:0.86rem;">
+              <thead>
+                <tr><th>benchmark</th><th>frame F1</th><th>AUC</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>synthetic test (vs teacher labels)</td><td>0.905</td><td>0.923</td></tr>
+                <tr><td>TEN VAD public set (stored thr)</td><td>0.869</td><td>0.868</td></tr>
+                <tr><td>TEN VAD public set (best thr, upper bound)</td><td>0.890</td><td>—</td></tr>
+                <tr><td>AMI SDM meetings (AMI-calibrated thr)</td><td>0.880</td><td>0.848</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Boundary quality vs the Silero teacher (100 streamed clips): onset Δ
+            improved from −432 ms (v1) to −172 ms; offset Δ from +718 ms to
+            +478 ms. The student already out-ranks its teacher on AMI (F1 0.880 vs
+            0.714) while the teacher stays better calibrated close-mic (TEN F1
+            0.937 / AUC 0.952). On the shared protocol teensy-v2 attains TEN AUC
+            0.868 and AMI F1 0.880 / AUC 0.848; like-for-like with FlashVAD's
+            threshold-tuned TEN numbers, F1 0.890 vs 0.889 with 2.3× fewer
+            parameters. Quantization is essentially free (PTQ ΔAUC 0.0000, 99.7%
+            decision agreement; QAT adds +0.9 F1 points over PTQ at 28 KB). Full
+            family comparison: the <a
+            href="https://huggingface.co/Teensy/teensy-vad-3/blob/main/BENCHMARKS.md"
+            target="_blank">BENCHMARKS.md appendix</a> in the Hugging Face repos.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Limitations</h2>
+        <div class="content has-text-justified">
+          <ul>
+            <li>A student inherits its teacher's biases; Silero's conservatism on
+                sung/tone-like audio transfers.</li>
+            <li>English read speech + environmental noise only; no babble or room
+                tone in training (addressed in teensy-vad-3).</li>
+            <li>Operating thresholds are domain-specific: the real-set numbers above
+                used AMI-calibrated thresholds (0.10); the stored default suits
+                synthetic-event use.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">License & Availability</h2>
+        <div class="content has-text-justified">
+          <p>
+            Code: MIT. Weights: <b>CC BY-NC-SA 4.0</b> (ESC-50 training noise is
+            CC BY-NC-SA 3.0; speech LibriSpeech is CC BY 4.0; teacher Silero VAD is
+            MIT). Not for commercial deployment without retraining on permissive
+            noise data. Weights, ONNX exports and the distillation/evaluation
+            pipeline are available on the <a
+            href="https://huggingface.co/Teensy/teensy-vad-2" target="_blank">Hugging
+            Face repo</a>. Reproducibility: pipeline stages (all in
+            <code>scripts/</code>): <code>prepare_data.py --save-audio</code>
+            (mixtures), <code>distill_label.py</code> (teacher labelling +
+            disagreement report), <code>train.py --data-suffix .distill --ycol y</code>
+            (hard-label student; <code>--ycol ysoft</code> for the soft variant),
+            <code>calibrate_events.py</code> (event threshold calibration),
+            <code>evaluate_distill.py</code> (agreement, boundary timing, speed),
+            plus the shared <code>train_all.py</code>, <code>quantize.py</code>,
+            <code>export_onnx.py</code>, <code>benchmark.py</code>, and
+            <code>audiosocket_server.py</code>.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Citation</h2>
+        <div class="content has-text-justified">
+<pre><code>@software{doharey2026teensyvad2,
+  title  = {TeensyVAD-v2: A 20k-Parameter Voice Activity Detector Distilled from Silero VAD},
+  author = {Doharey, Pankaj (VoxLogic)},
+  year   = {2026},
+  url    = {https://huggingface.co/Teensy/teensy-vad-2},
+  note   = {TeensyVAD by VoxLogic — Silero-distilled student; 20,449 parameters; 8 kHz native; contact: pankaj@voxlogic.ai}
+}</code></pre>
+        </div>
+      </div>
+    </div>
+
+<footer class="footer">
+  <div class="container">
+    <div class="content has-text-centered">
+      <p>
+        <b>TeensyVAD by VoxLogic</b> ·
+        <a href="mailto:pankaj@voxlogic.ai">pankaj@voxlogic.ai</a> ·
+        <a href="../index.html">Family index</a><br>
+        Site template: <a href="https://github.com/nerfies/nerfies.github.io" target="_blank">Nerfies</a>.
+        Charts and numbers generated by the TeensyVAD reproducible benchmark suite.
+      </p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
