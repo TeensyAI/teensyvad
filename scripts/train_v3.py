@@ -74,6 +74,22 @@ def eval_lazy(m, data: LazyWindows, thr: float, bs: int = 65536):
     return dict(f1=prf(P, y, thr)[2], auc=auc(P, y), P=P, y=y)
 
 
+def shuffled_block_batches(rng: np.random.Generator, n: int, bs: int,
+                           block_size: int = 16_384):
+    """Yield sequential batches from randomized blocks.
+
+    A fully random 38M-index permutation causes pathological mmap page faults
+    on a workstation. Randomizing 16k-frame blocks preserves epoch-level data
+    mixing while keeping reads inside each block sequential and cache-friendly.
+    """
+    starts = np.arange(0, n, block_size, dtype=np.int64)
+    rng.shuffle(starts)
+    for start in starts:
+        stop = min(int(start) + block_size, n)
+        for pos in range(int(start), stop, bs):
+            yield np.arange(pos, min(pos + bs, stop), dtype=np.int64)
+
+
 def train_float(model, tr: LazyWindows, va: LazyWindows, *, epochs=30, bs=2048,
                 lr=2e-3, patience=6, thr=0.5, seed=0, tag="float"):
     rng = np.random.default_rng(seed)
@@ -81,10 +97,9 @@ def train_float(model, tr: LazyWindows, va: LazyWindows, *, epochs=30, bs=2048,
     best = {"f1": -1, "auc": -1, "ep": -1,
             "params": {k: v.copy() for k, v in model.p.items()}}
     for ep in range(1, epochs + 1):
-        order = rng.permutation(len(tr))
         losses = []
-        for s in range(0, len(order), bs):
-            Xb, yb = tr.batch(order[s:s + bs])
+        for indices in shuffled_block_batches(rng, len(tr), bs):
+            Xb, yb = tr.batch(indices)
             loss, grads = model.loss_and_grads(Xb, yb)
             opt.step(model.p, grads)
             losses.append(loss)
@@ -108,10 +123,9 @@ def qat_finetune(model, tr: LazyWindows, va: LazyWindows, *, epochs=10, bs=2048,
     opt = Adam(model.p, lr=lr)
     best = {"f1": -1, "params": {k: v.copy() for k, v in model.p.items()}, "ep": -1}
     for ep in range(1, epochs + 1):
-        order = rng.permutation(len(tr))
         losses = []
-        for s in range(0, len(order), bs):
-            Xb, yb = tr.batch(order[s:s + bs])
+        for indices in shuffled_block_batches(rng, len(tr), bs):
+            Xb, yb = tr.batch(indices)
             loss, grads = qat_loss_and_grads(model, Xb, yb, ALL_Q)
             opt.step(model.p, grads)
             losses.append(loss)
