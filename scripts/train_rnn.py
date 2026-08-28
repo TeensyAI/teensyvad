@@ -51,6 +51,9 @@ def main() -> None:
     ap.add_argument("--batches-per-epoch", type=int, default=1500,
                     help="chunks sampled per epoch (data is huge; sampling "
                          "is with replacement)")
+    ap.add_argument("--calibrate-ami", action="store_true",
+                    help="after training, calibrate thr on AMI dev via "
+                         "scripts/eval_gru.py --calibrate")
     ap.add_argument("--lr", type=float, default=2e-3)
     ap.add_argument("--out", type=Path, default=Path("models/teensy-v7-gru.npz"))
     args = ap.parse_args()
@@ -160,6 +163,10 @@ def main() -> None:
     np.savez(str(args.out), **npz)
     print(f"saved → {args.out}  best val_f1 {best['f1']:.4f}  "
           f"({time.time()-t0:.0f}s)")
+    if args.calibrate_ami:
+        import subprocess
+        subprocess.run([sys.executable, "scripts/eval_gru.py",
+                        "--model", str(args.out), "--calibrate"], check=True)
 
 
 if __name__ == "__main__":
