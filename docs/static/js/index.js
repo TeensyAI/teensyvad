@@ -65,13 +65,16 @@ $(document).ready(function() {
         player.currentTime = player.duration / 100 * this.value;
       })
     }, false);*/
-    preloadInterpolationImages();
-
-    $('#interpolation-slider').on('input', function(event) {
-      setInterpolationImage(this.value);
-    });
-    setInterpolationImage(0);
-    $('#interpolation-slider').prop('max', NUM_INTERP_FRAMES - 1);
+    // This research site has no interpolation demo. Do not preload the
+    // Space template's 240 absent JPEGs (which would cause console 404s).
+    if (document.getElementById('interpolation-image-wrapper')) {
+      preloadInterpolationImages();
+      $('#interpolation-slider').on('input', function(event) {
+        setInterpolationImage(this.value);
+      });
+      setInterpolationImage(0);
+      $('#interpolation-slider').prop('max', NUM_INTERP_FRAMES - 1);
+    }
 
     bulmaSlider.attach();
 
