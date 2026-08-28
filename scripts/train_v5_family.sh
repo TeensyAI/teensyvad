@@ -15,13 +15,6 @@ run () {
         > "logs/float_v5_${TAG}.log" 2>&1
     tail -1 "logs/float_v5_${TAG}.log"
   fi
-  if [ ! -f "models/teensy-v5-${TAG}-qat.npz" ]; then
-    echo "=== qat teensy-v5-${TAG}-qat ==="
-    $PY -u scripts/train_v3.py --stage qat --data data/prepared_v5 \
-        --out "models/teensy-v5-${TAG}.npz" --out-qat "models/teensy-v5-${TAG}-qat.npz" \
-        --qat-epochs 4 --batch-size 2048 > "logs/qat_v5_${TAG}.log" 2>&1
-    tail -1 "logs/qat_v5_${TAG}.log"
-  fi
 }
 
 run 48 24 20k
