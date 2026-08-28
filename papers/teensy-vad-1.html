@@ -2,10 +2,11 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="teensy-vad-1: a complete 20,449-parameter (87 KB) voice activity detector for 8 kHz telephony audio, pure NumPy with hand-written backprop — the construction-labels baseline of the TeensyVAD family.">
+  <meta name="description"
+        content="teensyvad: a family of 20k-100k parameter voice activity detectors for 8 kHz telephony, trained by distillation from Silero VAD and evaluated on human-labelled real-world audio.">
   <meta name="keywords" content="VAD, voice activity detection, telephony, distillation, on-device, quantization">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>TeensyVAD-v1: A 20k-Parameter Voice Activity Detector for Telephony — TeensyVAD by VoxLogic</title>
+  <title>teensy-vad-1: A 20k-Parameter Voice Activity Detector for Telephony Audio</title>
 
   <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro"
         rel="stylesheet">
@@ -14,6 +15,8 @@
   <link rel="stylesheet" href="../static/css/bulma-carousel.min.css">
   <link rel="stylesheet" href="../static/css/bulma-slider.min.css">
   <link rel="stylesheet" href="../static/css/fontawesome.all.min.css">
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
   <link rel="stylesheet" href="../static/css/index.css">
   <link rel="icon" href="../static/images/favicon.svg">
 
@@ -24,14 +27,13 @@
   <script src="../static/js/index.js"></script>
 </head>
 <body>
-
 <section class="hero">
   <div class="hero-body">
     <div class="container is-max-desktop">
       <div class="columns is-centered">
         <div class="column has-text-centered">
           <h1 class="title is-1 publication-title">
-            TeensyVAD-v1: A 20k-Parameter Voice Activity Detector for Telephony
+            teensy-vad-1: A 20k-Parameter Voice Activity Detector for Telephony Audio
           </h1>
           <div class="is-size-5 publication-authors">
             <span class="author-block">
@@ -50,28 +52,21 @@
                 <a href="https://huggingface.co/Teensy/teensy-vad-1" target="_blank"
                    class="external-link button is-normal is-rounded is-dark">
                   <span class="icon"><i class="fas fa-box-open"></i></span>
-                  <span>Models</span>
+                  <span>Model card (v1)</span>
                 </a>
               </span>
               <span class="link-block">
-                <a href="teensy-vad-1.md" target="_blank"
-                   class="external-link button is-normal is-rounded is-dark">
-                  <span class="icon"><i class="far fa-file-alt"></i></span>
-                  <span>Paper (Markdown)</span>
-                </a>
-              </span>
-              <span class="link-block">
-                <a href="https://metacritical.github.io/teensyvad/" target="_blank"
+                <a href="../index.html"
                    class="external-link button is-normal is-rounded is-dark">
                   <span class="icon"><i class="fas fa-home"></i></span>
-                  <span>Family Index</span>
+                  <span>Family landing</span>
                 </a>
               </span>
               <span class="link-block">
-                <a href="https://github.com/metacritical/teensyvad" target="_blank"
+                <a href="https://huggingface.co/Teensy/teensy-vad-3/blob/main/BENCHMARKS.md" target="_blank"
                    class="external-link button is-normal is-rounded is-dark">
-                  <span class="icon"><i class="fab fa-github"></i></span>
-                  <span>GitHub</span>
+                  <span class="icon"><i class="far fa-file-alt"></i></span>
+                  <span>Benchmark appendix</span>
                 </a>
               </span>
             </div>
@@ -82,23 +77,14 @@
   </div>
 </section>
 
+<section class="section">
+  <div class="container is-max-desktop">
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
         <h2 class="title is-3">Abstract</h2>
         <div class="content has-text-justified">
           <p>
-            <b>teensy-vad-1</b> is the first model of the teensyvad family: a complete
-            voice activity detector of <b>20,449 parameters (87&nbsp;KB)</b> implemented
-            in pure NumPy with hand-written backprop, built to run natively in an
-            8&nbsp;kHz telephony stack and to serve as a readable baseline for the
-            later, distilled and data-scaled members of the family. Despite its size
-            it decisively outperforms an adaptive energy baseline (event F1
-            <b>0.976 vs 0.535</b>) on streamed clips. On human-labelled real audio it
-            reaches TEN VAD set AUC 0.848 and AMI SDM F1 0.887 / AUC 0.835 at
-            AMI-dev-calibrated operating points. A capacity sweep (40k/80k/100k
-            variants) shows accuracy is flat across sizes on a 1M-frame training
-            set, which set up the data-scaling question addressed by
-            teensy-vad-3.
+            <b>teensy-vad-1</b> is the first model of the teensyvad family: a complete voice activity detector of 20,449 parameters (87 KB) implemented in pure numpy with hand-written backprop, built to run natively in an 8 kHz telephony stack and to serve as a readable baseline for the later, distilled and data-scaled members of the family.
           </p>
         </div>
       </div>
@@ -106,22 +92,10 @@
 
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
-        <h2 class="title is-3">Introduction</h2>
+        <h2 class="title is-3">1 · Introduction</h2>
         <div class="content has-text-justified">
           <p>
-            Voice activity detection (VAD) answers one binary question per audio
-            frame: is somebody talking right now? Classical energy-based detectors
-            fail at phone-line noise levels because "loud" is not "speech"; existing
-            neural VADs are orders of magnitude larger than a telephony task
-            requires. teensy-vad-1 solved the founding problem of the teensyvad
-            family timeline: demonstrating that a tiny, fully understandable
-            classifier — trained on real mixed data — can decisively outperform the
-            energy baseline (event F1 0.976 vs 0.535) while remaining small enough
-            to read in one sitting and fast enough for Asterisk AudioSocket
-            streaming. It was also the vehicle for a capacity sweep
-            (40k/80k/100k variants) showing that accuracy is flat across sizes on a
-            1M-frame training set, which set up the data-scaling question addressed
-            by teensy-vad-3.
+            Voice activity detection (VAD) answers one binary question per audio frame: is somebody talking right now? Classical energy-based detectors fail at phone-line noise levels because "loud" is not "speech"; existing neural VADs are orders of magnitude larger than a telephony task requires. teensy-vad-1 solved the founding problem of the teensyvad family timeline: demonstrating that a tiny, fully understandable classifier — trained on real mixed data — can decisively outperform the energy baseline (event F1 0.976 vs 0.535) while remaining small enough to read in one sitting and fast enough for Asterisk AudioSocket streaming. It was also the vehicle for a capacity sweep (40k/80k/100k variants) showing that accuracy is flat across sizes on a 1M-frame training set, which set up the data-scaling question addressed by teensy-vad-3.
           </p>
         </div>
       </div>
@@ -129,50 +103,21 @@
 
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
-        <h2 class="title is-3">Data</h2>
+        <h2 class="title is-3">2 · Data</h2>
         <div class="content has-text-justified">
-          <ul>
-            <li><b>Speech:</b> LibriSpeech <code>dev-clean</code>, 1,200 utterances,
-                speaker-disjoint train/val/test splits (CC BY 4.0).</li>
-            <li><b>Noise:</b> ESC-50, fold-disjoint, human-vocal categories excluded
-                (CC BY-NC-SA 3.0).</li>
-            <li><b>Mixing:</b> utterances embedded in noise at SNR 0–20 dB; 40% of
-                clips round-tripped through G.711 µ-law to simulate telephone-line
-                degradation. ~1M labelled frames.</li>
-            <li><b>Labels:</b> construction ground truth — a frame is labelled speech
-                iff the placed utterance covers its centre, with utterance edges
-                energy-trimmed.</li>
-          </ul>
+          <p>
+            Speech is LibriSpeech <code>dev-clean</code>, 1,200 utterances, with speaker-disjoint train/val/test splits (CC BY 4.0). Noise is ESC-50, fold-disjoint, with human-vocal categories excluded (CC BY-NC-SA 3.0). Mixing embeds utterances in noise at SNR 0–20 dB, with 40% of clips round-tripped through G.711 µ-law to simulate telephone-line degradation — about 1M labelled frames in total. Labels are <b>construction ground truth</b>: a frame is labelled speech iff the placed utterance covers its centre, with utterance edges energy-trimmed.
+          </p>
         </div>
       </div>
     </div>
 
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
-        <h2 class="title is-3">Method</h2>
+        <h2 class="title is-3">3 · Method</h2>
         <div class="content has-text-justified">
           <p>
-            The model is a 3-layer MLP, 400 → 48 → 24 → 1 (ReLU hidden layers,
-            sigmoid head), with a hand-written backprop and Adam implementation.
-            Output is P(speech) per 10 ms frame.
-          </p>
-          <p>
-            Feature frontend (telephony-native, 8 kHz end-to-end, no resampling):
-          </p>
-          <ol>
-            <li>Frames of 200 samples (25 ms window) at a hop of 80 (10 ms).</li>
-            <li>Per frame: Hann window → zero-padded FFT to 256 → power spectrum.</li>
-            <li>20 mel triangles spanning 80–3800 Hz (rows normalised to sum 1).</li>
-            <li>log(mel + 1e-10), then per-frame mean subtraction over bands (gain
-                invariance — the model sees spectral shape, not level).</li>
-            <li>First-order delta (current − previous frame), concatenated →
-                40 dims/frame.</li>
-            <li>A stack of 10 frames (100 ms context, oldest→newest, frame-major) →
-                400 input dims, standardised with stored mean/std vectors.</li>
-          </ol>
-          <p>
-            Streaming decisions add hysteresis and hangover on top of per-frame
-            probabilities.
+            The model is a 3-layer MLP, 400 → 48 → 24 → 1 (ReLU hidden layers, sigmoid head), with hand-written backprop and Adam. Output is P(speech) per 10 ms frame. The feature frontend is telephony-native, 8 kHz end-to-end, no resampling: (1) frames of 200 samples (25 ms window) at a hop of 80 (10 ms); (2) per frame, Hann window → zero-padded FFT to 256 → power spectrum; (3) 20 mel triangles spanning 80–3800 Hz (rows normalised to sum 1); (4) log(mel + 1e-10), then per-frame mean subtraction over bands (gain invariance — the model sees spectral shape, not level); (5) first-order delta (current − previous frame), concatenated → 40 dims/frame; (6) a stack of 10 frames (100 ms context, oldest→newest, frame-major) → 400 input dims, standardised with stored mean/std vectors. Streaming decisions add hysteresis and hangover on top of per-frame probabilities.
           </p>
         </div>
       </div>
@@ -180,35 +125,33 @@
 
     <div class="columns is-centered has-text-centered">
       <div class="column is-full-width">
-        <h2 class="title is-3">Results</h2>
+        <h2 class="title is-3">4 · Results</h2>
         <div class="content">
-          <p>
-            Benchmarks (frame F1 / AUC):
-          </p>
           <div class="table-container">
-            <table class="table is-bordered is-striped is-narrow is-hoverable is-fullwidth"
-                   style="font-size:0.86rem;">
-              <thead>
-                <tr><th>benchmark</th><th>frame F1</th><th>AUC</th></tr>
-              </thead>
+            <table class="table is-bordered is-striped is-narrow is-hoverable is-inline-block"
+                   style="font-size:0.9rem;">
+              <thead><tr><th>benchmark</th><th>frame F1</th><th>AUC</th></tr></thead>
               <tbody>
                 <tr><td>synthetic test (unseen speakers, unseen noise)</td><td>0.903</td><td>0.889</td></tr>
-                <tr><td>event-level streaming (120 clips)</td><td>0.976</td><td>—</td></tr>
+                <tr><td>event-level streaming (120 clips)</td><td><b>0.976</b></td><td>—</td></tr>
                 <tr><td>TEN VAD public set (real recordings)</td><td>0.850</td><td>0.848</td></tr>
                 <tr><td>AMI SDM meetings (real rooms, manual labels)</td><td>0.743</td><td>0.835</td></tr>
               </tbody>
             </table>
           </div>
+          <p class="is-size-7 has-text-grey">teensy-vad-1 version-specific results (stored synthetic thresholds; real sets at the shared family protocol where noted below).</p>
+          <img src="../static/images/charts/realworld.png" alt="Family-level real-world comparison chart"
+               style="width:100%; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12);">
+          <p class="is-size-7 has-text-grey" style="margin-top:6px;">
+            This figure is a <b>family-level</b> comparison: best size per teensyvad generation (v1–v4) against public baselines on the shared real-world protocol — it is not specific to this paper's variant alone. Version-specific numbers are in the table below.
+          </p>
+          <img src="../static/images/charts/capacity.png" alt="Family-level capacity scaling chart"
+               style="width:100%; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12);">
+          <p class="is-size-7 has-text-grey" style="margin-top:6px;">
+            This figure is also a <b>family-level</b> view: validation frame F1 vs parameter count for the v1–v4 training families. The <b>v1 row (1M frames, construction labels)</b> is the flat 20k→100k curve — accuracy does not improve with size at 1M frames, the observation that motivates the data scaling of v3/v4.
+          </p>
           <p>
-            An adaptive energy VAD on the same streamed clips reaches event F1
-            0.535 (2.5× over-triggering). On the shared real-world protocol
-            (AMI-dev-calibrated operating points), teensy-v1 attains AMI SDM F1
-            0.887 / AUC 0.835 vs Silero VAD 0.714 / 0.894, WebRTC VAD 0.842 /
-            0.760, and Energy VAD 0.592 / 0.658; Silero ranks best by AUC (87×
-            larger) but its stock threshold misses 44% of room speech. Full family
-            comparison: the <a
-            href="https://huggingface.co/Teensy/teensy-vad-3/blob/main/BENCHMARKS.md"
-            target="_blank">BENCHMARKS.md appendix</a> in the Hugging Face repos.
+            An adaptive energy VAD on the same streamed clips reaches event F1 0.535 (2.5× over-triggering). On the shared real-world protocol (AMI-dev-calibrated operating points), teensy-v1 attains AMI SDM F1 0.887 / AUC 0.835 vs Silero VAD 0.714 / 0.894, WebRTC VAD 0.842 / 0.760, and Energy VAD 0.592 / 0.658; Silero ranks best by AUC (87× larger) but its stock threshold misses 44% of room speech. Full family comparison: see the <a href="https://huggingface.co/Teensy/teensy-vad-3/blob/main/BENCHMARKS.md" target="_blank">BENCHMARKS.md appendix</a> in the Hugging Face repos.
           </p>
         </div>
       </div>
@@ -216,43 +159,32 @@
 
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
-        <h2 class="title is-3">Limitations</h2>
+        <h2 class="title is-3">5 · Limitations</h2>
         <div class="content has-text-justified">
-          <ul>
-            <li>Trained on English read speech plus environmental noise only; music
-                and multi-talker babble were not in training (addressed in
-                teensy-vad-3).</li>
-            <li>Construction labels mark intra-utterance pauses as speech, so
-                boundaries are loose (onset ~430 ms early relative to a Silero
-                teacher); teensy-vad-2 addresses this via distillation.</li>
-            <li>Stored operating thresholds were tuned on synthetic validation;
-                real-domain thresholds differ (domain profiles appear from v3
-                onward).</li>
-          </ul>
+          <p>
+            Trained on English read speech plus environmental noise only; music and multi-talker babble were not in training (addressed in teensy-vad-3). Construction labels mark intra-utterance pauses as speech, so boundaries are loose (onset ~430 ms early relative to a Silero teacher); teensy-vad-2 addresses this via distillation. Stored operating thresholds were tuned on synthetic validation; real-domain thresholds differ (domain profiles appear from v3 onward).
+          </p>
         </div>
       </div>
     </div>
 
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
-        <h2 class="title is-3">License & Availability</h2>
+        <h2 class="title is-3">6 · License</h2>
         <div class="content has-text-justified">
           <p>
-            Code: MIT. Weights: <b>CC BY-NC-SA 4.0</b> (training noise ESC-50 is
-            CC BY-NC-SA 3.0; speech LibriSpeech is CC BY 4.0). Not for commercial
-            deployment without replacing the ESC-50-derived training data. Weights,
-            ONNX float32/int8 exports and the evaluation harness are available on
-            the <a href="https://huggingface.co/Teensy/teensy-vad-1"
-            target="_blank">Hugging Face repo</a>. Reproducibility: pipeline stages
-            (all in <code>scripts/</code>): <code>prepare_data.py</code> (mixture
-            construction), <code>train.py</code> (training + threshold
-            calibration), <code>train_all.py</code> (resumable end-to-end),
-            <code>evaluate.py</code> and <code>benchmark.py</code> (quality and
-            speed), <code>quantize.py</code> and <code>export_onnx.py</code>
-            (int8 / ONNX artifacts), <code>demo_file.py</code>, and
-            <code>audiosocket_server.py</code> for Asterisk streaming. The library
-            (<code>teensyvad</code>) is pure numpy; tests live in
-            <code>tests/test_all.py</code>.
+            Code: MIT. Weights: CC BY-NC-SA 4.0 (training noise ESC-50 is CC BY-NC-SA 3.0; speech LibriSpeech is CC BY 4.0). Not for commercial deployment without replacing the ESC-50-derived training data.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Reproducibility</h2>
+        <div class="content has-text-justified">
+          <p>
+            Pipeline stages (all in <code>scripts/</code>): <code>prepare_data.py</code> (mixture construction), <code>train.py</code> (training + threshold calibration), <code>train_all.py</code> (resumable end-to-end), <code>evaluate.py</code> and <code>benchmark.py</code> (quality and speed), <code>quantize.py</code> and <code>export_onnx.py</code> (int8 / ONNX artifacts), <code>demo_file.py</code>, and <code>audiosocket_server.py</code> for Asterisk streaming. The library (<code>teensyvad</code>) is pure numpy; tests live in <code>tests/test_all.py</code>.
           </p>
         </div>
       </div>
@@ -261,17 +193,19 @@
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
         <h2 class="title is-3">Citation</h2>
-        <div class="content has-text-justified">
-<pre><code>@software{doharey2026teensyvad1,
-  title  = {TeensyVAD-v1: A 20k-Parameter Voice Activity Detector for Telephony},
+        <div class="content">
+<pre><code>@software{teensyvad1,
+  title  = {teensy-vad-1: A 20k-Parameter Voice Activity Detector for Telephony Audio},
   author = {Doharey, Pankaj (VoxLogic)},
   year   = {2026},
   url    = {https://huggingface.co/Teensy/teensy-vad-1},
-  note   = {TeensyVAD by VoxLogic — construction-labels baseline; 20,449 parameters; 8 kHz native; contact: pankaj@voxlogic.ai}
+  note   = {TeensyVAD by VoxLogic — family generation v1; contact: pankaj@voxlogic.ai}
 }</code></pre>
         </div>
       </div>
     </div>
+
+</section>
 
 <footer class="footer">
   <div class="container">
@@ -279,7 +213,7 @@
       <p>
         <b>TeensyVAD by VoxLogic</b> ·
         <a href="mailto:pankaj@voxlogic.ai">pankaj@voxlogic.ai</a> ·
-        <a href="../index.html">Family index</a><br>
+        <a href="../index.html">Family landing</a><br>
         Site template: <a href="https://github.com/nerfies/nerfies.github.io" target="_blank">Nerfies</a>.
         Charts and numbers generated by the TeensyVAD reproducible benchmark suite.
       </p>

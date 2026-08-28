@@ -2,10 +2,11 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="teensy-vad-3: the 20,449-parameter distilled telephony VAD hardened with real-room ambience and 7-talker babble at 10× the training data — TEN AUC 0.873 (0.877 at 80k) and calibrated AMI SDM F1 0.886.">
+  <meta name="description"
+        content="teensyvad: a family of 20k-100k parameter voice activity detectors for 8 kHz telephony, trained by distillation from Silero VAD and evaluated on human-labelled real-world audio.">
   <meta name="keywords" content="VAD, voice activity detection, telephony, distillation, on-device, quantization">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>TeensyVAD-v3: Real-Room Data at Family Scale for a 20k-Parameter Telephony VAD — TeensyVAD by VoxLogic</title>
+  <title>teensy-vad-3: A 20k-Parameter Distilled Voice Activity Detector Hardened with Real-Room Ambience and Multi-Talker Babble</title>
 
   <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro"
         rel="stylesheet">
@@ -14,6 +15,8 @@
   <link rel="stylesheet" href="../static/css/bulma-carousel.min.css">
   <link rel="stylesheet" href="../static/css/bulma-slider.min.css">
   <link rel="stylesheet" href="../static/css/fontawesome.all.min.css">
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
   <link rel="stylesheet" href="../static/css/index.css">
   <link rel="icon" href="../static/images/favicon.svg">
 
@@ -24,14 +27,13 @@
   <script src="../static/js/index.js"></script>
 </head>
 <body>
-
 <section class="hero">
   <div class="hero-body">
     <div class="container is-max-desktop">
       <div class="columns is-centered">
         <div class="column has-text-centered">
           <h1 class="title is-1 publication-title">
-            TeensyVAD-v3: Real-Room Data at Family Scale for a 20k-Parameter Telephony VAD
+            teensy-vad-3: A 20k-Parameter Distilled Voice Activity Detector Hardened with Real-Room Ambience and Multi-Talker Babble
           </h1>
           <div class="is-size-5 publication-authors">
             <span class="author-block">
@@ -50,28 +52,21 @@
                 <a href="https://huggingface.co/Teensy/teensy-vad-3" target="_blank"
                    class="external-link button is-normal is-rounded is-dark">
                   <span class="icon"><i class="fas fa-box-open"></i></span>
-                  <span>Models</span>
+                  <span>Model card (v3)</span>
                 </a>
               </span>
               <span class="link-block">
-                <a href="teensy-vad-3.md" target="_blank"
-                   class="external-link button is-normal is-rounded is-dark">
-                  <span class="icon"><i class="far fa-file-alt"></i></span>
-                  <span>Paper (Markdown)</span>
-                </a>
-              </span>
-              <span class="link-block">
-                <a href="https://metacritical.github.io/teensyvad/" target="_blank"
+                <a href="../index.html"
                    class="external-link button is-normal is-rounded is-dark">
                   <span class="icon"><i class="fas fa-home"></i></span>
-                  <span>Family Index</span>
+                  <span>Family landing</span>
                 </a>
               </span>
               <span class="link-block">
-                <a href="https://github.com/metacritical/teensyvad" target="_blank"
+                <a href="https://huggingface.co/Teensy/teensy-vad-3/blob/main/BENCHMARKS.md" target="_blank"
                    class="external-link button is-normal is-rounded is-dark">
-                  <span class="icon"><i class="fab fa-github"></i></span>
-                  <span>GitHub</span>
+                  <span class="icon"><i class="far fa-file-alt"></i></span>
+                  <span>Benchmark appendix</span>
                 </a>
               </span>
             </div>
@@ -82,25 +77,14 @@
   </div>
 </section>
 
+<section class="section">
+  <div class="container is-max-desktop">
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
         <h2 class="title is-3">Abstract</h2>
         <div class="content has-text-justified">
           <p>
-            We present <b>teensy-vad-3</b>, the third generation of the teensyvad
-            family of voice activity detectors (VADs). It keeps the family's
-            readable 3-layer MLP (<b>20,449 parameters, 88&nbsp;KB</b>) while scaling
-            training data 10× over v2 and hardening it against real-world
-            conditions: three noise families — ESC-50 environmental noise, synthetic
-            7-talker babble built from disjoint LibriSpeech speakers, and real AMI
-            room ambience — at SNR −5…20&nbsp;dB, with Silero-teacher labels and
-            G.711 µ-law augmentation. On human-labelled recordings it reaches TEN
-            VAD set AUC 0.873 and AMI SDM F1 <b>0.886</b> (AUC 0.861) at
-            AMI-dev-calibrated thresholds, beating WebRTC VAD on every comparable
-            metric while running in ~63&nbsp;µs per 20&nbsp;ms telephony chunk in
-            pure NumPy. Silero VAD ranks best by AUC, but its stock operating point
-            misses 44% of room speech; teensy-vad-3 operates best in rooms, per KB
-            and per µs.
+            We present <b>teensy-vad-3</b>, the third generation of the teensyvad family of voice activity detectors (VADs). It keeps the family's readable 3-layer MLP (20,449 parameters, 88 KB) while scaling training data 10× over v2 and hardening it against real-world conditions: three noise families — ESC-50 environmental noise, synthetic 7-talker babble built from disjoint LibriSpeech speakers, and real AMI room ambience — at SNR −5…20 dB, with Silero-teacher labels and G.711 µ-law augmentation. On human-labelled recordings it reaches TEN VAD set AUC 0.873 and AMI SDM F1 0.886 (AUC 0.861) at AMI-dev-calibrated thresholds, beating WebRTC VAD on every comparable metric while running in ~63 µs per 20 ms telephony chunk in pure numpy.
           </p>
         </div>
       </div>
@@ -108,19 +92,10 @@
 
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
-        <h2 class="title is-3">Introduction</h2>
+        <h2 class="title is-3">1 · Introduction</h2>
         <div class="content has-text-justified">
           <p>
-            Voice activity detection answers one question per 10 ms frame: is
-            somebody talking right now? Earlier teensyvad generations (v1
-            construction labels, v2 Silero-distilled) were trained on ~1M synthetic
-            frames and evaluated only on synthetic mixtures. teensy-vad-3 changes
-            two things: (i)&nbsp;<b>scaled, harder data</b> — ~30 h of mixtures /
-            10.7M teacher-labelled frames (10× v2), with real-room ambience and
-            7-talker babble added to the noise pool, and the SNR floor pushed to
-            −5 dB; and (ii)&nbsp;<b>evaluation on human-labelled real audio</b> (the
-            TEN VAD public set and AMI SDM meetings) rather than synthetic holdouts
-            only.
+            Voice activity detection answers one question per 10 ms frame: is somebody talking right now? Earlier teensyvad generations (v1 construction labels, v2 Silero-distilled) were trained on ~1M synthetic frames and evaluated only on synthetic mixtures. teensy-vad-3 changes two things: (i) <b>scaled, harder data</b> — ~30 h of mixtures / 10.7M teacher-labelled frames (10× v2), with real-room ambience and 7-talker babble added to the noise pool, and the SNR floor pushed to −5 dB; and (ii) <b>evaluation on human-labelled real audio</b> (the TEN VAD public set and AMI SDM meetings) rather than synthetic holdouts only.
           </p>
         </div>
       </div>
@@ -128,20 +103,10 @@
 
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
-        <h2 class="title is-3">Data</h2>
+        <h2 class="title is-3">2 · Data</h2>
         <div class="content has-text-justified">
           <p>
-            Speech is LibriSpeech <code>train-clean-100</code> (8,000 utterances,
-            CC BY 4.0). Noise combines three families: ESC-50 environmental noise
-            (CC BY-NC-SA 3.0, fold-disjoint), synthetic 7-talker babble (summed
-            disjoint LibriSpeech speakers), and real AMI room ambience (non-speech
-            stretches of distant-mic meeting audio — chairs, keyboards, HVAC — taken
-            only from the 3 meetings reserved for calibration; the 8 evaluation
-            meetings were never seen). Mixtures span SNR −5…20 dB; 40% of clips
-            round-trip through G.711 µ-law (shifting real-set numbers by
-            &lt; 0.5%). Labels are Silero-teacher (hard). We state honestly: <b>the
-            ESC-50 share carries a non-commercial license</b> (CC BY-NC-SA 3.0),
-            which propagates to the published weights.
+            Speech is LibriSpeech <code>train-clean-100</code> (8,000 utterances, CC BY 4.0). Noise combines three families: ESC-50 environmental noise (CC BY-NC-SA 3.0, fold-disjoint), synthetic 7-talker babble (summed disjoint LibriSpeech speakers), and real AMI room ambience (non-speech stretches of distant-mic meeting audio — chairs, keyboards, HVAC — taken only from the 3 meetings reserved for calibration; the 8 evaluation meetings were never seen). Mixtures span SNR −5…20 dB; 40% of clips round-trip through G.711 µ-law (shifting real-set numbers by &lt; 0.5%). Labels are Silero-teacher (hard). We state honestly: <b>the ESC-50 share carries a non-commercial license</b> (CC BY-NC-SA 3.0), which propagates to the published weights.
           </p>
         </div>
       </div>
@@ -149,21 +114,10 @@
 
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
-        <h2 class="title is-3">Method</h2>
+        <h2 class="title is-3">3 · Method</h2>
         <div class="content has-text-justified">
           <p>
-            Native 8 kHz mono, 25 ms frames / 10 ms hop. Features: 20 log-mel
-            filters over 80–3800 Hz with per-frame band-mean subtraction, plus
-            deltas (40 dims/frame); 10 frames (100 ms) of context are stacked into a
-            400-dim vector. Classifier: a 400→48→24→1 MLP with ReLU (20,449
-            parameters), trained with hand-written backprop + Adam. Streaming uses
-            hysteresis (enter above a high threshold, exit below a lower one) and
-            hangover (~250 ms), with domain threshold profiles shipped in metadata
-            (<code>close_mic</code> thr_hi 0.45; <code>distant_room</code> thr_hi
-            0.10, AMI-calibrated). Exports include QAT int8 (29 KB; int8 val F1
-            0.912) and ONNX float32/int8. Capacity variants (40k/80k/100k) were
-            trained on the same frames; capacity pays only because data scaled:
-            TEN AUC 0.873 (20k) → 0.877 (80k), saturating at 100k.
+            Native 8 kHz mono, 25 ms frames / 10 ms hop. Features: 20 log-mel filters over 80–3800 Hz with per-frame band-mean subtraction, plus deltas (40 dims/frame); 10 frames (100 ms) of context are stacked into a 400-dim vector. Classifier: a 400→48→24→1 MLP with ReLU (20,449 parameters), trained with hand-written backprop + Adam. Streaming uses hysteresis (enter above a high threshold, exit below a lower one) and hangover (~250 ms), with domain threshold profiles shipped in metadata (<code>close_mic</code> thr_hi 0.45; <code>distant_room</code> thr_hi 0.10, AMI-calibrated). Exports include QAT int8 (29 KB; int8 val F1 0.912) and ONNX float32/int8. Capacity variants (40k/80k/100k) were trained on the same frames; capacity pays only because data scaled: TEN AUC 0.873 (20k) → 0.877 (80k), saturating at 100k.
           </p>
         </div>
       </div>
@@ -171,32 +125,40 @@
 
     <div class="columns is-centered has-text-centered">
       <div class="column is-full-width">
-        <h2 class="title is-3">Results</h2>
+        <h2 class="title is-3">4 · Results</h2>
         <div class="content">
           <p>
             Protocol: 10 ms frame grid on human-labelled audio; every detector's
-            operating point calibrated on AMI dev meetings; AUC on raw
-            probabilities; speed = median µs per 20 ms chunk, one Apple M2 Pro core.
+            operating point calibrated on AMI dev meetings; AUC on raw probabilities;
+            speed = median µs per 20 ms chunk, one Apple M2 Pro core.
           </p>
           <div class="table-container">
             <table class="table is-bordered is-striped is-narrow is-hoverable is-fullwidth"
                    style="font-size:0.86rem;">
-              <thead>
-                <tr><th></th><th>teensy-v3 (20k)</th><th>teensy-v3-80k</th><th>Silero VAD</th><th>WebRTC VAD</th><th>Energy VAD</th></tr>
-              </thead>
+              <thead><tr><th></th><th>teensy-v3 (20k)</th><th>teensy-v3-80k</th><th>Silero VAD</th><th>WebRTC VAD</th><th>Energy VAD</th></tr></thead>
               <tbody>
                 <tr><td>params</td><td>20,449</td><td>80,373</td><td>1,774,000</td><td>~6k (C)</td><td>—</td></tr>
-                <tr class="is-selected"><td>TEN VAD set — F1 (best thr*)</td><td>0.894</td><td><b>0.894</b></td><td>0.938</td><td>n/a</td><td>—</td></tr>
+                <tr><td>TEN VAD set — F1 (best thr*)</td><td>0.894</td><td><b>0.894</b></td><td>0.938</td><td>n/a</td><td>—</td></tr>
                 <tr><td>TEN VAD set — AUC</td><td>0.873</td><td><b>0.877</b></td><td>0.952</td><td>n/a</td><td>0.670</td></tr>
-                <tr class="is-selected"><td>AMI SDM — F1 (calibrated)</td><td><b>0.886</b></td><td>0.882</td><td>0.714</td><td>0.842</td><td>0.592</td></tr>
+                <tr><td>AMI SDM — F1 (calibrated)</td><td><b>0.886</b></td><td>0.882</td><td>0.714</td><td>0.842</td><td>0.592</td></tr>
                 <tr><td>AMI SDM — AUC</td><td>0.861</td><td>0.861</td><td><b>0.894</b></td><td>0.760</td><td>0.658</td></tr>
                 <tr><td>µs / 20 ms chunk</td><td>63</td><td>64</td><td>89</td><td><b>2</b></td><td>7</td></tr>
               </tbody>
             </table>
           </div>
-          <p class="is-size-7 has-text-grey">
-            *TEN F1 tuned on that set — like-for-like with FlashVAD's published
-            F1 0.889 / AUC 0.882.
+          <p class="is-size-7 has-text-grey">teensy-vad-3 version-specific table (both sizes) against public baselines. * tuned on that set — like-for-like with FlashVAD's published F1 0.889 / AUC 0.882.</p>
+          <img src="../static/images/charts/realworld.png" alt="Family-level real-world comparison chart"
+               style="width:100%; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12);">
+          <p class="is-size-7 has-text-grey" style="margin-top:6px;">
+            This figure is a <b>family-level</b> comparison: best size per teensyvad generation (v1–v4) against public baselines on the shared real-world protocol — it is not specific to this paper's variant alone. Version-specific numbers are in the table above.
+          </p>
+          <img src="../static/images/charts/capacity.png" alt="Family-level capacity scaling chart"
+               style="width:100%; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12);">
+          <p class="is-size-7 has-text-grey" style="margin-top:6px;">
+            <b>Family-level</b> capacity figure. The <b>v3 row (10.7M frames, distilled)</b> is the first family where size starts to pay: a sweet spot appears at ~80k (TEN AUC 0.877) after the flat v1/v2 curves at 1M frames.
+          </p>
+          <p>
+            Silero VAD ranks best by AUC, but its stock operating point misses 44% of room speech; teensy-vad-3 operates best in rooms, per KB and per µs, beating WebRTC VAD on every comparable metric while running in ~63 µs per 20 ms telephony chunk in pure numpy.
           </p>
         </div>
       </div>
@@ -204,17 +166,10 @@
 
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
-        <h2 class="title is-3">Limitations</h2>
+        <h2 class="title is-3">5 · Limitations</h2>
         <div class="content has-text-justified">
           <p>
-            English speech only; no music in training (music reads as "activity").
-            100 ms context is short — unvoiced fricatives in noise remain the
-            hardest frames (a GRU/TCN would help, deliberately out of scope). No
-            acoustic echo cancellation: far-end echo/crosstalk can double-trigger;
-            use an upstream echo canceller. At distant-room operating points all
-            systems show high false-alarm rates on overlapped meeting speech (labels
-            mark foreground speech only). Packet-loss concealment is not modelled.
-            Weights inherit ESC-50's NC license.
+            English speech only; no music in training (music reads as "activity"). 100 ms context is short — unvoiced fricatives in noise remain the hardest frames (a GRU/TCN would help, deliberately out of scope). No acoustic echo cancellation: far-end echo/crosstalk can double-trigger; use an upstream echo canceller. At distant-room operating points all systems show high false-alarm rates on overlapped meeting speech (labels mark foreground speech only). Packet-loss concealment is not modelled. Weights inherit ESC-50's NC license.
           </p>
         </div>
       </div>
@@ -222,23 +177,21 @@
 
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
-        <h2 class="title is-3">License & Availability</h2>
+        <h2 class="title is-3">6 · License</h2>
         <div class="content has-text-justified">
           <p>
-            Code: MIT. Weights: <b>CC BY-NC-SA 4.0</b> as currently published,
-            because ESC-50 noise (CC BY-NC-SA 3.0) is in the training mix
-            (LibriSpeech and AMI are CC BY 4.0; Silero teacher MIT). Not for
-            commercial deployment without replacing the non-commercial training
-            data; <b>a commercial-safe retrain on permissively licensed noise is
-            planned</b>. Weights, QAT int8 and ONNX exports, the domain threshold
-            profiles and the benchmark appendix are available on the <a
-            href="https://huggingface.co/Teensy/teensy-vad-3" target="_blank">Hugging
-            Face repo</a>. Reproducibility: all numbers reproduce from the project
-            scripts: <code>prepare_data_v3.py</code>, <code>noise_pools.py</code>,
-            <code>train_v3.py</code>, <code>eval_realworld.py</code>,
-            <code>calibrate_realworld.py</code>, <code>compare_all.py</code>,
-            <code>quantize.py</code>, <code>export_onnx.py</code>. Model files are
-            plain <code>.npz</code> inspectable with <code>numpy.load</code>.
+            Code: MIT. Weights: <b>CC BY-NC-SA 4.0</b> as currently published, because ESC-50 noise (CC BY-NC-SA 3.0) is in the training mix (LibriSpeech and AMI are CC BY 4.0; Silero teacher MIT). Not for commercial deployment without replacing the non-commercial training data; a commercial-safe retrain on permissively licensed noise is planned.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Reproducibility</h2>
+        <div class="content has-text-justified">
+          <p>
+            All numbers reproduce from the project scripts: <code>prepare_data_v3.py</code>, <code>noise_pools.py</code>, <code>train_v3.py</code>, <code>eval_realworld.py</code>, <code>calibrate_realworld.py</code>, <code>compare_all.py</code>, <code>quantize.py</code>, <code>export_onnx.py</code>. Model files are plain <code>.npz</code> inspectable with <code>numpy.load</code>.
           </p>
         </div>
       </div>
@@ -247,17 +200,19 @@
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
         <h2 class="title is-3">Citation</h2>
-        <div class="content has-text-justified">
-<pre><code>@software{doharey2026teensyvad3,
-  title  = {TeensyVAD-v3: Real-Room Data at Family Scale for a 20k-Parameter Telephony VAD},
+        <div class="content">
+<pre><code>@software{teensyvad3,
+  title  = {teensy-vad-3: A 20k-Parameter Distilled Voice Activity Detector Hardened with Real-Room Ambience and Multi-Talker Babble},
   author = {Doharey, Pankaj (VoxLogic)},
   year   = {2026},
   url    = {https://huggingface.co/Teensy/teensy-vad-3},
-  note   = {TeensyVAD by VoxLogic — 10.7M-frame real-room-hardened generation; 8 kHz native; contact: pankaj@voxlogic.ai}
+  note   = {TeensyVAD by VoxLogic — family generation v3; contact: pankaj@voxlogic.ai}
 }</code></pre>
         </div>
       </div>
     </div>
+
+</section>
 
 <footer class="footer">
   <div class="container">
@@ -265,7 +220,7 @@
       <p>
         <b>TeensyVAD by VoxLogic</b> ·
         <a href="mailto:pankaj@voxlogic.ai">pankaj@voxlogic.ai</a> ·
-        <a href="../index.html">Family index</a><br>
+        <a href="../index.html">Family landing</a><br>
         Site template: <a href="https://github.com/nerfies/nerfies.github.io" target="_blank">Nerfies</a>.
         Charts and numbers generated by the TeensyVAD reproducible benchmark suite.
       </p>

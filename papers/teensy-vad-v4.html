@@ -2,10 +2,11 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="teensy-vad-v4: the 100-hour generation of the 20k-parameter telephony VAD family — 37.9M Silero-teacher-labelled frames, the full 20k–100k capacity sweep, and a QAT int8 ladder; v4-80k reaches TEN AUC 0.880.">
+  <meta name="description"
+        content="teensyvad: a family of 20k-100k parameter voice activity detectors for 8 kHz telephony, trained by distillation from Silero VAD and evaluated on human-labelled real-world audio.">
   <meta name="keywords" content="VAD, voice activity detection, telephony, distillation, on-device, quantization">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>TeensyVAD-v4: Quantization-Aware Scaling to 0.880 TEN AUC — TeensyVAD by VoxLogic</title>
+  <title>teensy-vad-v4: The 100-Hour Generation of a 20k-Parameter Voice Activity Detector</title>
 
   <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro"
         rel="stylesheet">
@@ -14,6 +15,8 @@
   <link rel="stylesheet" href="../static/css/bulma-carousel.min.css">
   <link rel="stylesheet" href="../static/css/bulma-slider.min.css">
   <link rel="stylesheet" href="../static/css/fontawesome.all.min.css">
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
   <link rel="stylesheet" href="../static/css/index.css">
   <link rel="icon" href="../static/images/favicon.svg">
 
@@ -24,14 +27,13 @@
   <script src="../static/js/index.js"></script>
 </head>
 <body>
-
 <section class="hero">
   <div class="hero-body">
     <div class="container is-max-desktop">
       <div class="columns is-centered">
         <div class="column has-text-centered">
           <h1 class="title is-1 publication-title">
-            TeensyVAD-v4: Quantization-Aware Scaling to 0.880 TEN AUC
+            teensy-vad-v4: The 100-Hour Generation of a 20k-Parameter Voice Activity Detector
           </h1>
           <div class="is-size-5 publication-authors">
             <span class="author-block">
@@ -50,28 +52,21 @@
                 <a href="https://huggingface.co/Teensy/teensy-vad-v4" target="_blank"
                    class="external-link button is-normal is-rounded is-dark">
                   <span class="icon"><i class="fas fa-box-open"></i></span>
-                  <span>Models</span>
+                  <span>Model card (v4)</span>
                 </a>
               </span>
               <span class="link-block">
-                <a href="teensy-vad-v4.md" target="_blank"
-                   class="external-link button is-normal is-rounded is-dark">
-                  <span class="icon"><i class="far fa-file-alt"></i></span>
-                  <span>Paper (Markdown)</span>
-                </a>
-              </span>
-              <span class="link-block">
-                <a href="https://metacritical.github.io/teensyvad/" target="_blank"
+                <a href="../index.html"
                    class="external-link button is-normal is-rounded is-dark">
                   <span class="icon"><i class="fas fa-home"></i></span>
-                  <span>Family Index</span>
+                  <span>Family landing</span>
                 </a>
               </span>
               <span class="link-block">
-                <a href="https://github.com/metacritical/teensyvad" target="_blank"
+                <a href="https://huggingface.co/Teensy/teensy-vad-3/blob/main/BENCHMARKS.md" target="_blank"
                    class="external-link button is-normal is-rounded is-dark">
-                  <span class="icon"><i class="fab fa-github"></i></span>
-                  <span>GitHub</span>
+                  <span class="icon"><i class="far fa-file-alt"></i></span>
+                  <span>Benchmark appendix</span>
                 </a>
               </span>
             </div>
@@ -82,23 +77,14 @@
   </div>
 </section>
 
+<section class="section">
+  <div class="container is-max-desktop">
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
         <h2 class="title is-3">Abstract</h2>
         <div class="content has-text-justified">
           <p>
-            We present <b>teensy-vad-v4</b>, the fourth generation of the teensyvad
-            family: the same readable 3-layer MLP, now trained on the full ~100 h of
-            LibriSpeech <code>train-clean-100</code> (all 28,539 utterances — 3.5×
-            the v3 dataset, 37.9M Silero-teacher-labelled frames), with the complete
-            20k/40k/80k/100k capacity sweep and improved quantization-aware
-            training. On human-labelled audio, v4-80k reaches <b>TEN VAD set AUC
-            0.880</b> and AMI SDM AUC 0.862 (F1 0.880 at calibrated thresholds) —
-            essentially matching FlashVAD's published AUC (0.882) at 2.3× fewer
-            parameters — while the 20k default runs in ~63&nbsp;µs per 20&nbsp;ms
-            telephony chunk in pure NumPy. Int8 QAT variants are the family's best
-            per-KB artifacts: the 20k QAT holds TEN AUC 0.876 in a <b>28&nbsp;KB</b>
-            file.
+            We present <b>teensy-vad-v4</b>, the fourth generation of the teensyvad family: the same readable 3-layer MLP, now trained on the full ~100 h of LibriSpeech <code>train-clean-100</code> (all 28,539 utterances — 3.5× the v3 dataset, 37.9M Silero-teacher-labelled frames), with the complete 20k/40k/80k/100k capacity sweep and improved quantization-aware training. On human-labelled audio, v4-80k reaches TEN VAD set AUC 0.880 and AMI SDM AUC 0.862 (F1 0.880 at calibrated thresholds) — essentially matching FlashVAD's published AUC (0.882) at 2.3× fewer parameters — while the 20k default runs in ~63 µs per 20 ms telephony chunk in pure numpy. Int8 QAT variants are the family's best per-KB artifacts: the 20k QAT holds TEN AUC 0.876 in a 28 KB file.
           </p>
         </div>
       </div>
@@ -106,20 +92,10 @@
 
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
-        <h2 class="title is-3">Introduction</h2>
+        <h2 class="title is-3">1 · Introduction</h2>
         <div class="content has-text-justified">
           <p>
-            The v3 experiment showed that capacity scales only with data: at 1M
-            training frames, growing parameters 20k→100k was flat; at 10.7M frames
-            the sweet spot moved to ~80k. teensy-vad-v4 completes the curve at
-            37.9M frames — and capacity keeps paying to the largest size tested
-            (val F1 0.9137 at 20k → 0.9205 at 100k). Two further contributions
-            distinguish v4: (i)&nbsp;<b>improved training and QAT</b> —
-            memmap/float16 plumbing for the 60 GB-scale design matrix, and a full
-            QAT variant ladder fine-tuned with int8 simulated in the forward pass
-            (straight-through-estimator gradients); and (ii)&nbsp;<b>best-AUC
-            variants</b> — v4-80k is the family's real-world AUC champion, and
-            several QAT variants beat their float counterparts on real-set AUC.
+            The v3 experiment showed that capacity scales only with data: at 1M training frames, growing parameters 20k→100k was flat; at 10.7M frames the sweet spot moved to ~80k. teensy-vad-v4 completes the curve at 37.9M frames — and capacity keeps paying to the largest size tested (val F1 0.9137 at 20k → 0.9205 at 100k). Two further contributions distinguish v4: (i) <b>improved training and QAT</b> — memmap/float16 plumbing for the 60 GB-scale design matrix, and a full QAT variant ladder fine-tuned with int8 simulated in the forward pass (straight-through-estimator gradients); and (ii) <b>best-AUC variants</b> — v4-80k is the family's real-world AUC champion, and several QAT variants beat their float counterparts on real-set AUC.
           </p>
         </div>
       </div>
@@ -127,17 +103,10 @@
 
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
-        <h2 class="title is-3">Data</h2>
+        <h2 class="title is-3">2 · Data</h2>
         <div class="content has-text-justified">
           <p>
-            Speech: all of LibriSpeech <code>train-clean-100</code> (CC BY 4.0;
-            37,936,872 verified training windows). Noise families, unchanged from
-            v3: ESC-50 environmental noise, synthetic 7-talker babble (disjoint
-            LibriSpeech speakers), and real AMI room ambience from the calibration
-            meetings only; SNR −5…20 dB, with G.711 µ-law augmentation. Labels are
-            Silero-teacher (hard). As in v3 we state honestly: <b>the ESC-50 share
-            carries a non-commercial license</b> (CC BY-NC-SA 3.0), which propagates
-            to the published weights.
+            Speech: all of LibriSpeech <code>train-clean-100</code> (CC BY 4.0; 37,936,872 verified training windows). Noise families, unchanged from v3: ESC-50 environmental noise, synthetic 7-talker babble (disjoint LibriSpeech speakers), and real AMI room ambience from the calibration meetings only; SNR −5…20 dB, with G.711 µ-law augmentation. Labels are Silero-teacher (hard). As in v3 we state honestly: <b>the ESC-50 share carries a non-commercial license</b> (CC BY-NC-SA 3.0), which propagates to the published weights.
           </p>
         </div>
       </div>
@@ -145,19 +114,10 @@
 
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
-        <h2 class="title is-3">Method</h2>
+        <h2 class="title is-3">3 · Method</h2>
         <div class="content has-text-justified">
           <p>
-            Identical architecture to the whole family: 8 kHz mono, 25 ms frames /
-            10 ms hop; 20 log-mel filters over 80–3800 Hz with per-frame band-mean
-            subtraction, plus deltas (40 dims/frame); 10-frame (100 ms) context
-            stacked into a 400-dim vector; a 400→48→24→1 ReLU MLP (20,449 parameters
-            at the default size; 39,609 / 80,373 / 99,593 for the 40k / 80k / 100k
-            variants). Streaming uses hysteresis and hangover with domain threshold
-            profiles (<code>close_mic</code> thr_hi 0.45 default;
-            <code>distant_room</code> thr_hi 0.10, AMI-calibrated). Exports: float
-            <code>.npz</code>, QAT int8 <code>.npz</code> (20k/40k/80k/100k), and
-            ONNX float32/int8.
+            Identical architecture to the whole family: 8 kHz mono, 25 ms frames / 10 ms hop; 20 log-mel filters over 80–3800 Hz with per-frame band-mean subtraction, plus deltas (40 dims/frame); 10-frame (100 ms) context stacked into a 400-dim vector; a 400→48→24→1 ReLU MLP (20,449 parameters at the default size; 39,609 / 80,373 / 99,593 for the 40k / 80k / 100k variants). Streaming uses hysteresis and hangover with domain threshold profiles (<code>close_mic</code> thr_hi 0.45 default; <code>distant_room</code> thr_hi 0.10, AMI-calibrated). Exports: float <code>.npz</code>, QAT int8 <code>.npz</code> (20k/40k/80k/100k), and ONNX float32/int8.
           </p>
         </div>
       </div>
@@ -165,7 +125,7 @@
 
     <div class="columns is-centered has-text-centered">
       <div class="column is-full-width">
-        <h2 class="title is-3">Results</h2>
+        <h2 class="title is-3">4 · Results</h2>
         <div class="content">
           <p>
             Shared protocol (human-labelled audio, AMI-dev-calibrated operating
@@ -173,27 +133,41 @@
           </p>
           <div class="table-container">
             <table class="table is-bordered is-striped is-narrow is-hoverable is-fullwidth"
-                   style="font-size:0.86rem;">
-              <thead>
-                <tr><th></th><th>v4 (20k)</th><th>v4-40k</th><th>v4-80k</th><th>v4-100k</th><th>v4-qat (int8)</th><th>v3-80k</th><th>Silero</th><th>WebRTC</th><th>Energy</th></tr>
-              </thead>
+                   style="font-size:0.82rem;">
+              <thead><tr><th></th><th>v4 (20k)</th><th>v4-40k</th><th><b>v4-80k</b></th><th>v4-100k</th><th>v4-qat (int8)</th><th>v3-80k</th><th>Silero</th><th>WebRTC</th><th>Energy</th></tr></thead>
               <tbody>
                 <tr><td>params</td><td>20,449</td><td>39,609</td><td>80,373</td><td>99,593</td><td>20,449</td><td>80,373</td><td>1,774,000</td><td>~6k</td><td>—</td></tr>
-                <tr><td>TEN VAD set — F1 (best thr*)</td><td>0.892</td><td>0.892</td><td><b>0.896</b></td><td>0.892</td><td>0.894</td><td>0.894</td><td>0.938</td><td>n/a</td><td>—</td></tr>
-                <tr class="is-selected"><td>TEN VAD set — AUC</td><td>0.871</td><td>0.875</td><td><b>0.880</b></td><td>0.875</td><td>0.876</td><td>0.877</td><td>0.952</td><td>n/a</td><td>0.670</td></tr>
-                <tr><td>AMI SDM — F1 (calibrated)</td><td><b>0.884</b></td><td>0.883</td><td>0.880</td><td>0.882</td><td>0.884</td><td>0.882</td><td>0.714</td><td>0.842</td><td>0.592</td></tr>
-                <tr><td>AMI SDM — AUC</td><td>0.861</td><td><b>0.862</b></td><td>0.862</td><td>0.861</td><td>0.862</td><td>0.861</td><td>0.894</td><td>0.760</td><td>0.658</td></tr>
+                <tr><td>TEN F1 (best thr*)</td><td>0.892</td><td>0.892</td><td><b>0.896</b></td><td>0.892</td><td>0.894</td><td>0.894</td><td>0.938</td><td>n/a</td><td>—</td></tr>
+                <tr><td>TEN AUC</td><td>0.871</td><td>0.875</td><td><b>0.880</b></td><td>0.875</td><td>0.876</td><td>0.877</td><td>0.952</td><td>n/a</td><td>0.670</td></tr>
+                <tr><td>AMI F1 (calibrated)</td><td><b>0.884</b></td><td>0.883</td><td>0.880</td><td>0.882</td><td>0.884</td><td>0.882</td><td>0.714</td><td>0.842</td><td>0.592</td></tr>
+                <tr><td>AMI AUC</td><td>0.861</td><td><b>0.862</b></td><td>0.862</td><td>0.861</td><td>0.862</td><td>0.861</td><td>0.894</td><td>0.760</td><td>0.658</td></tr>
                 <tr><td>µs / 20 ms chunk</td><td>63</td><td>65</td><td>66</td><td>64</td><td>92</td><td>66</td><td>89</td><td>2</td><td>7</td></tr>
               </tbody>
             </table>
           </div>
-          <p class="is-size-7 has-text-grey">
-            *TEN F1 tuned on that set — like-for-like with FlashVAD's published
-            F1 0.889 / AUC 0.882: v4-80k essentially matches FlashVAD's AUC
-            (0.880 vs 0.882) at 2.3× fewer parameters. The int8 QAT variant holds
-            TEN AUC 0.876 in a 28 KB file — within 0.005 of the 80k champion at
-            1/11th the size. teensy-v4-80k-qat (88 KB) posts the family's best AMI
-            AUC: 0.863.
+          <p class="is-size-7 has-text-grey">teensy-vad-v4 version-specific table (full capacity + QAT ladder). * tuned on that set — like-for-like with FlashVAD's published F1 0.889 / AUC 0.882: v4-80k essentially matches FlashVAD's AUC (0.880 vs 0.882) at 2.3× fewer parameters. The int8 QAT variant holds TEN AUC 0.876 in a 28 KB file — within 0.005 of the 80k champion at 1/11th the size.</p>
+          <img src="../static/images/charts/chart_v4.png" alt="v4-specific family comparison chart"
+               style="width:100%; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12);">
+          <p class="is-size-7 has-text-grey" style="margin-top:6px;">
+            This figure is <b>v4-specific</b>: it shows the teensy-vad-v4 generation only — the full 20k/40k/80k/100k capacity sweep and the QAT int8 ladder (float vs int8 at every size), not the v1–v3 generations.
+          </p>
+          <img src="../static/images/charts/realworld.png" alt="Family-level real-world comparison chart"
+               style="width:100%; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12);">
+          <p class="is-size-7 has-text-grey" style="margin-top:6px;">
+            This figure is a <b>family-level</b> comparison: best size per teensyvad generation (v1–v4) against public baselines on the shared real-world protocol — it is not specific to this paper's variant alone. Version-specific numbers are in the table above.
+          </p>
+          <img src="../static/images/charts/capacity.png" alt="Family-level capacity scaling chart"
+               style="width:100%; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12);">
+          <p class="is-size-7 has-text-grey" style="margin-top:6px;">
+            <b>Family-level</b> capacity figure across v1–v4. The <b>v4 row (37.9M frames = 100 h, distilled)</b> is the only family that keeps improving to the largest size tested (val F1 0.914 → 0.921).
+          </p>
+          <img src="../static/images/charts/speed_accuracy.png" alt="Speed vs accuracy chart"
+               style="width:80%; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12);">
+          <p class="is-size-7 has-text-grey" style="margin-top:6px;">
+            <b>Family-level</b> speed-vs-accuracy view over all evaluated systems; v4's per-variant timings are in the table above.
+          </p>
+          <p>
+            v4-80k is the family's real-world AUC champion (TEN AUC 0.880); the 20k QAT int8 file beats its 87 KB float32 parent (TEN AUC 0.876 vs 0.871) at 28 KB; and the 20k default streams in ~63 µs per 20 ms telephony chunk in pure numpy. Offline batched inference (ONNX Runtime int8) runs at 0.064 µs/frame — the fastest figure we are aware of among open VADs in this mode.
           </p>
         </div>
       </div>
@@ -201,16 +175,10 @@
 
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
-        <h2 class="title is-3">Limitations</h2>
+        <h2 class="title is-3">5 · Limitations</h2>
         <div class="content has-text-justified">
           <p>
-            English speech only; no music in training (music reads as "activity").
-            100 ms context: fricatives in noise are the hardest frames. No acoustic
-            echo cancellation — far-end echo/crosstalk is not modelled; use an
-            upstream echo canceller (e.g. Asterisk's). At distant-room operating
-            points, false-alarm rates are high on overlapped meeting speech for all
-            systems (labels mark foreground speech only). Weights inherit ESC-50's
-            NC license.
+            English speech only; no music in training (music reads as "activity"). 100 ms context: fricatives in noise are the hardest frames. No acoustic echo cancellation — far-end echo/crosstalk is not modelled; use an upstream echo canceller (e.g. Asterisk's). At distant-room operating points, false-alarm rates are high on overlapped meeting speech for all systems (labels mark foreground speech only). Weights inherit ESC-50's NC license.
           </p>
         </div>
       </div>
@@ -218,25 +186,21 @@
 
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
-        <h2 class="title is-3">License & Availability</h2>
+        <h2 class="title is-3">6 · License</h2>
         <div class="content has-text-justified">
           <p>
-            Code: MIT. Weights: <b>CC BY-NC-SA 4.0</b> as currently published,
-            because ESC-50 noise (CC BY-NC-SA 3.0) is in the training mix
-            (LibriSpeech and AMI are CC BY 4.0; Silero teacher MIT). Not for
-            commercial deployment without replacing the non-commercial training
-            data; <b>a commercial-safe retrain on permissively licensed noise is
-            planned</b>. Weights, the full QAT int8 ladder and ONNX float32/int8
-            exports are available on the <a
-            href="https://huggingface.co/Teensy/teensy-vad-v4" target="_blank">Hugging
-            Face repo</a>. Reproducibility: all numbers reproduce from the project
-            scripts: <code>prepare_data_v3.py --utts 30000 --npy</code>,
-            <code>distill_label.py</code>, <code>train_v3.py</code>,
-            <code>qat_bakeoff.py</code>, <code>calibrate_realworld.py</code>,
-            <code>compare_all.py</code>, <code>make_charts.py</code>,
-            <code>quantize.py</code>, <code>export_onnx.py</code>. Model files are
-            plain <code>.npz</code> (weights + JSON metadata), inspectable with
-            <code>numpy.load</code>.
+            Code: MIT. Weights: <b>CC BY-NC-SA 4.0</b> as currently published, because ESC-50 noise (CC BY-NC-SA 3.0) is in the training mix (LibriSpeech and AMI are CC BY 4.0; Silero teacher MIT). Not for commercial deployment without replacing the non-commercial training data; a commercial-safe retrain on permissively licensed noise is planned.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Reproducibility</h2>
+        <div class="content has-text-justified">
+          <p>
+            All numbers reproduce from the project scripts: <code>prepare_data_v3.py --utts 30000 --npy</code>, <code>distill_label.py</code>, <code>train_v3.py</code>, <code>qat_bakeoff.py</code>, <code>calibrate_realworld.py</code>, <code>compare_all.py</code>, <code>make_charts.py</code>, <code>quantize.py</code>, <code>export_onnx.py</code>. Model files are plain <code>.npz</code> (weights + JSON metadata), inspectable with <code>numpy.load</code>.
           </p>
         </div>
       </div>
@@ -245,17 +209,19 @@
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
         <h2 class="title is-3">Citation</h2>
-        <div class="content has-text-justified">
-<pre><code>@software{doharey2026teensyvadv4,
-  title  = {TeensyVAD-v4: Quantization-Aware Scaling to 0.880 TEN AUC},
+        <div class="content">
+<pre><code>@software{teensyvadv4,
+  title  = {teensy-vad-v4: The 100-Hour Generation of a 20k-Parameter Voice Activity Detector},
   author = {Doharey, Pankaj (VoxLogic)},
   year   = {2026},
   url    = {https://huggingface.co/Teensy/teensy-vad-v4},
-  note   = {TeensyVAD by VoxLogic — the 100-hour generation (20k–100k + QAT int8); 8 kHz native; contact: pankaj@voxlogic.ai}
+  note   = {TeensyVAD by VoxLogic — family generation v4; contact: pankaj@voxlogic.ai}
 }</code></pre>
         </div>
       </div>
     </div>
+
+</section>
 
 <footer class="footer">
   <div class="container">
@@ -263,7 +229,7 @@
       <p>
         <b>TeensyVAD by VoxLogic</b> ·
         <a href="mailto:pankaj@voxlogic.ai">pankaj@voxlogic.ai</a> ·
-        <a href="../index.html">Family index</a><br>
+        <a href="../index.html">Family landing</a><br>
         Site template: <a href="https://github.com/nerfies/nerfies.github.io" target="_blank">Nerfies</a>.
         Charts and numbers generated by the TeensyVAD reproducible benchmark suite.
       </p>
