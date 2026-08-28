@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="description"
+        content="teensy-vad-v6: context beats capacity — widening temporal context from 100 ms to 250 ms beats adding parameters in tiny telephony voice activity detection.">
+  <meta name="keywords" content="VAD, voice activity detection, telephony, distillation, context, capacity, ablation, on-device, quantization">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TeensyVAD-v6: Context Beats Capacity in Tiny Telephony Voice Activity Detection</title>
+
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro"
+        rel="stylesheet">
+
+  <link rel="stylesheet" href="../static/css/bulma.min.css">
+  <link rel="stylesheet" href="../static/css/bulma-carousel.min.css">
+  <link rel="stylesheet" href="../static/css/bulma-slider.min.css">
+  <link rel="stylesheet" href="../static/css/fontawesome.all.min.css">
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <link rel="stylesheet" href="../static/css/index.css">
+  <link rel="icon" href="../static/images/favicon.svg">
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script defer src="../static/js/fontawesome.all.min.js"></script>
+  <script src="../static/js/bulma-carousel.min.js"></script>
+  <script src="../static/js/bulma-slider.min.js"></script>
+  <script src="../static/js/index.js"></script>
+</head>
+<body>
+<section class="hero">
+  <div class="hero-body">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column has-text-centered">
+          <h1 class="title is-1 publication-title">
+            TeensyVAD-v6: Context Beats Capacity in Tiny Telephony Voice Activity Detection
+          </h1>
+          <div class="is-size-5 publication-authors">
+            <span class="author-block">
+              <a href="mailto:pankaj@voxlogic.ai">Pankaj Doharey</a><sup>1</sup>
+            </span>
+          </div>
+
+          <div class="is-size-5 publication-authors">
+            <span class="author-block"><sup>1</sup><a href="mailto:pankaj@voxlogic.ai">VoxLogic</a> — TeensyVAD by VoxLogic ·
+              <a href="mailto:pankaj@voxlogic.ai">pankaj@voxlogic.ai</a></span>
+          </div>
+
+          <div class="column has-text-centered">
+            <div class="publication-links">
+              <span class="link-block">
+                <a href="https://huggingface.co/Teensy/teensy-vad-v6" target="_blank"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon"><i class="fas fa-box-open"></i></span>
+                  <span>Models → HF v6 repo</span>
+                </a>
+              </span>
+              <span class="link-block">
+                <a href="../index.html"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon"><i class="fas fa-home"></i></span>
+                  <span>Family Index</span>
+                </a>
+              </span>
+              <span class="link-block">
+                <a href="https://huggingface.co/Teensy/teensy-vad-3/blob/main/BENCHMARKS.md" target="_blank"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon"><i class="far fa-file-alt"></i></span>
+                  <span>Benchmark appendix</span>
+                </a>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Abstract</h2>
+        <div class="content has-text-justified">
+          <p>
+            We present <b>teensy-vad-v6</b>, the sixth generation of the teensyvad family, built around one measured
+            finding: at 100&nbsp;ms of temporal context, capacity has a ceiling — and it is low. A controlled scaling
+            ablation over the v5 family shows TEN VAD ROC-AUC peaking at 80k parameters (0.8877) and <i>falling</i> as
+            the model grows (100k 0.8865, 150k 0.8827, 200k 0.8849) while latency climbs 64→75&nbsp;µs. Instead of
+            adding parameters, v6 widens the model's temporal context from 100&nbsp;ms to <b>250&nbsp;ms</b> (plus one
+            hard-example-mining variant) and changes nothing else. Every v6 point at ≤49k parameters sits above the
+            entire v5 100&nbsp;ms capacity curve on TEN F1: v6-a1 (24,441 params) reaches TEN F1 0.9081, and v6-a2
+            (49,249 params) posts TEN AUC 0.8870 and the family's best AMI AUC (0.8726) with 60% fewer parameters than
+            the v5-80k peak — at identical speed (64–66&nbsp;µs per 20&nbsp;ms chunk). Silero still leads clean
+            near-mic ranking (TEN AUC 0.9519, recurrent, 36× the parameters); teensy leads real rooms (AMI F1 0.88+
+            vs 0.714). Weights are CC&nbsp;BY&nbsp;4.0 on the same MUSAN-safe data as v5.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">1 · Introduction</h2>
+        <div class="content has-text-justified">
+          <p>
+            v4 showed capacity paying all the way to 100k on validation F1; v5's 80k set the family record
+            (TEN AUC 0.8877). The natural next move was more parameters — so we measured where that stops paying,
+            and the answer was: almost immediately. Scaling the v5 family 20k→200k (all at 100&nbsp;ms context)
+            peaks at 80k and degrades beyond it, even with 37.9M training frames. The failure is not optimization or
+            overfitting of labels; the 100&nbsp;ms input window simply saturates — extra capacity is spent re-describing
+            context the model already has, at a 19% latency cost for the largest size. v6 tests the orthogonal axis:
+            if the window is the bottleneck, widen the window, not the weights. It is — at 24k parameters, 250&nbsp;ms
+            of context beats the family's entire measured 100&nbsp;ms capacity curve on TEN F1.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">2 · Ablation: capacity scaling at 100 ms (v5 family)</h2>
+        <div class="content has-text-justified">
+          <p>
+            All variants share the v5 recipe (37.9M frames, MUSAN noise, Silero teacher); only width varies.
+            TEN AUC peaks at 80k and declines on both sides of 200k; latency grows monotonically 64→75&nbsp;µs.
+          </p>
+          <img src="../static/images/charts/ablation.png" alt="Capacity scaling ablation: v5 family, 100 ms context"
+               style="width:100%; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12);">
+          <p class="is-size-7 has-text-grey" style="margin-top:6px;">
+            Capacity ceiling, measured: v5-family TEN AUC vs parameters at 100&nbsp;ms context. The curve peaks at
+            80k (0.8877) and <b>falls</b> past it — 100k 0.8865, 150k 0.8827, 200k 0.8849 — while per-chunk latency
+            climbs 64→75&nbsp;µs. Every v6 point (≤49k params, 250&nbsp;ms context) sits above the curve.
+          </p>
+          <div class="table-container" style="margin-top:14px;">
+            <table class="table is-bordered is-striped is-narrow is-hoverable is-fullwidth"
+                   style="font-size:0.85rem;">
+              <thead><tr><th>variant</th><th>params</th><th>context</th><th>TEN AUC</th><th>µs / 20 ms</th></tr></thead>
+              <tbody>
+                <tr><td>v5-20k</td><td>20,449</td><td>100 ms</td><td>0.8760</td><td>64</td></tr>
+                <tr><td>v5-40k</td><td>39,609</td><td>100 ms</td><td>0.8810</td><td>64</td></tr>
+                <tr><td><b>v5-80k (peak)</b></td><td>80,373</td><td>100 ms</td><td><b>0.8877</b></td><td>63</td></tr>
+                <tr><td>v5-100k</td><td>99,593</td><td>100 ms</td><td>0.8865</td><td>63</td></tr>
+                <tr><td>v5-150k</td><td>148,941</td><td>100 ms</td><td>0.8827</td><td>66</td></tr>
+                <tr><td>v5-200k</td><td>198,431</td><td>100 ms</td><td>0.8849</td><td>75</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="is-size-7 has-text-grey">
+            Capacity scaling ablation, v5 family, 100&nbsp;ms context, human-labelled TEN VAD set. More parameters
+            hurt past 80k; context (§3, §4) beats capacity.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">3 · Method</h2>
+        <div class="content has-text-justified">
+          <p>
+            Identical to v5 in every respect except two levers. (i) <b>Context widening</b>: the stacked input window
+            grows from 10 frames (100&nbsp;ms) to 25 frames (250&nbsp;ms) of the same 40-dim frame features, so the
+            MLP input goes 400-dim → 1000-dim — the v6-a1/a2 variants (<code>k25</code>). (ii) <b>Hard-example
+            mining</b> (v6-c): training oversamples frames where Silero-teacher and construction labels disagree,
+            at the standard 100&nbsp;ms context and unchanged size. Architecture, features, data, calibration and
+            runtime are otherwise exactly the v5 recipe: 8&nbsp;kHz mono, 25&nbsp;ms frames / 10&nbsp;ms hop,
+            20 log-mel filters (80–3800&nbsp;Hz) with band-mean subtraction plus deltas, ReLU MLP with sigmoid
+            output, hysteresis + hangover streaming with AMI-calibrated thresholds. Exports: float <code>.npz</code>
+            and ONNX float32/int8 (26K–204K npz / 22K–50K int8 ONNX per variant).
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-full-width">
+        <h2 class="title is-3">4 · Results</h2>
+        <div class="content">
+          <p>
+            Shared protocol (human-labelled audio, AMI-dev-calibrated operating points, AUC on raw probabilities):
+          </p>
+          <div class="table-container">
+            <table class="table is-bordered is-striped is-narrow is-hoverable is-fullwidth"
+                   style="font-size:0.82rem;">
+              <thead><tr><th></th><th>v6-a1</th><th><b>v6-a2 (recommended)</b></th><th>v6-c (mining)</th><th>v5-80k (prev. peak)</th><th>Silero</th></tr></thead>
+              <tbody>
+                <tr><td>context</td><td>250 ms</td><td>250 ms</td><td>100 ms</td><td>100 ms</td><td>recurrent</td></tr>
+                <tr><td>params</td><td>24,441</td><td>49,249</td><td>20,449</td><td>80,373</td><td>1,774,000</td></tr>
+                <tr><td>npz / int8 onnx (KB)</td><td>96 / 26</td><td>204 / 50</td><td>87 / 22</td><td>321 / 26</td><td>2,200</td></tr>
+                <tr><td>TEN F1 (best thr*)</td><td><b>0.9081</b></td><td><b>0.9081</b></td><td>0.8957</td><td>0.9016</td><td>0.938</td></tr>
+                <tr><td>TEN AUC</td><td>0.8834</td><td>0.8870</td><td>0.8799</td><td><b>0.8877</b></td><td><b>0.9519</b></td></tr>
+                <tr><td>AMI F1 (calibrated)</td><td>0.8842</td><td>0.8822</td><td><b>0.8853</b></td><td>0.8845</td><td>0.714</td></tr>
+                <tr><td>AMI AUC</td><td>0.8683</td><td><b>0.8726</b></td><td>0.8594</td><td>0.8622</td><td>0.8938</td></tr>
+                <tr><td>µs / 20 ms chunk</td><td>64</td><td>66</td><td>63</td><td>63</td><td>94</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="is-size-7 has-text-grey">teensy-vad-v6 variant table (verbatim). * tuned on that set — upper bound,
+            like-for-like with FlashVAD's published convention. <b>v6-a2</b> is the recommended default: v5-80k-class
+            TEN AUC (0.8870 vs 0.8877) with 60% fewer parameters and the family's best AMI AUC (0.8726). v6-a1 is the
+            efficiency pick — family-best TEN F1 (0.9081) at 24k params. v6-c ties the family-best AMI F1 (0.8853) at
+            20k params via mining alone.</p>
+          <img src="../static/images/charts/chart_v6.png" alt="v6 vs baselines comparison chart"
+               style="width:100%; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12);">
+          <p class="is-size-7 has-text-grey" style="margin-top:6px;">
+            This figure is <b>v6-specific</b>: the three v6 variants against the v5 peak and public baselines on the
+            shared real-world protocol. The capacity ablation behind the headline is in §2.
+          </p>
+          <p style="margin-top:12px;">
+            The headline, stated honestly: <b>Silero still leads clean near-mic</b> ranking (TEN AUC 0.9519 —
+            recurrent, 36× the parameters); <b>teensy leads real rooms</b> (AMI F1 0.88+ vs Silero's 0.714, whose
+            default threshold misses 44% of speech in real rooms). v6's contribution is the shape of the trade-off:
+            every v6 point at ≤49k parameters sits above the entire measured v5 100&nbsp;ms capacity curve —
+            context beats capacity.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">5 · Limitations</h2>
+        <div class="content has-text-justified">
+          <p>
+            English speech only; no music in training (music reads as "activity"). Context is 250&nbsp;ms — wider
+            than the family's 100&nbsp;ms, but not unbounded: recurrent teachers like Silero still hold the clean
+            near-mic crown (TEN AUC 0.9519), and v6 does not close that gap. No acoustic echo cancellation — use an
+            upstream echo canceller (e.g. Asterisk's). At distant-room operating points, false-alarm rates remain
+            high on overlapped meeting speech for all systems (labels mark foreground speech only).
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">6 · License &amp; Availability</h2>
+        <div class="content has-text-justified">
+          <p>
+            Code: MIT. Weights: <b>CC BY 4.0</b> — commercial use permitted with attribution
+            (©&nbsp;2026 Pankaj Doharey / Metacritical, TeensyVAD by VoxLogic), on the same MUSAN-safe data as v5
+            (LibriSpeech train-clean-100 CC BY 4.0, MUSAN noise CC BY 4.0, AMI ambience CC BY 4.0, Silero teacher
+            MIT). All artifacts — float <code>.npz</code>, ONNX float32 and int8 (22–50&nbsp;KB) per variant — are on
+            the <a href="https://huggingface.co/Teensy/teensy-vad-v6" target="_blank">teensy-vad-v6 Hugging Face
+            repository</a>. Model files are plain <code>.npz</code> (weights + JSON metadata), inspectable with
+            <code>numpy.load</code>; thresholds ship in the metadata (AMI-calibrated <code>thr_hi 0.10</code>
+            distant-room profile; <code>thr_hi 0.45</code> for close-mic).
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Citation</h2>
+        <div class="content">
+<pre><code>@software{doharey2026teensyvadv6,
+  title  = {TeensyVAD-v6: Context Beats Capacity in Tiny Telephony Voice Activity Detection},
+  author = {Doharey, Pankaj},
+  year   = {2026},
+  url    = {https://huggingface.co/Teensy/teensy-vad-v6},
+  note   = {TeensyVAD by VoxLogic — family generation v6; contact: pankaj@voxlogic.ai}
+}</code></pre>
+        </div>
+      </div>
+    </div>
+
+</section>
+
+<footer class="footer">
+  <div class="container">
+    <div class="content has-text-centered">
+      <p>
+        <b>TeensyVAD by VoxLogic</b> ·
+        <a href="mailto:pankaj@voxlogic.ai">pankaj@voxlogic.ai</a> ·
+        <a href="../index.html">Family landing</a><br>
+        Site template: <a href="https://github.com/nerfies/nerfies.github.io" target="_blank">Nerfies</a>.
+        Charts and numbers generated by the TeensyVAD reproducible benchmark suite.
+      </p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

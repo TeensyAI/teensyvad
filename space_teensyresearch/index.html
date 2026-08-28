@@ -224,6 +224,35 @@
     </div>
 
     <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">New: teensy-v6 — context beats capacity</h2>
+        <div class="content">
+          <img src="./static/images/charts/chart_v6.png" alt="teensy-v6 vs baselines"
+               style="width:100%; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12);">
+          <p style="max-width:820px; margin:auto;">
+            <b>teensy-v6</b> widens temporal context from 100&nbsp;ms to
+            <b>250&nbsp;ms</b> instead of adding parameters — and every v6 point at
+            ≤49k params sits above the entire measured v5 100&nbsp;ms capacity curve
+            (which peaks at 80k, TEN AUC 0.8877, and <i>falls</i> past it: 0.8865 →
+            0.8827 → 0.8849 at 100k–200k, latency 64→75&nbsp;µs). <b>v6-a2</b>
+            (49,249 params) matches the v5-80k peak on TEN AUC (0.8870) with 60%
+            fewer parameters and the family's best AMI AUC (0.8726); <b>v6-a1</b>
+            (24k) sets a family-record TEN F1 0.9081. Same MUSAN-safe CC&nbsp;BY&nbsp;4.0
+            data as v5 — artifacts on the
+            <a href="https://huggingface.co/Teensy/teensy-vad-v6" target="_blank">teensy-vad-v6 model card</a>.
+          </p>
+          <div style="margin-top:12px;">
+            <a href="https://huggingface.co/Teensy/teensy-vad-v6" target="_blank"
+               class="external-link button is-normal is-rounded is-dark">
+              <span class="icon"><i class="fas fa-box-open"></i></span>
+              <span>teensy-vad-v6 on Hugging Face</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
       <div class="column is-full-width">
         <h2 class="title is-3">What scales: data, not just parameters</h2>
         <div class="content">

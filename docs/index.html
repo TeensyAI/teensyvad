@@ -50,10 +50,10 @@
           <div class="column has-text-centered">
             <div class="publication-links">
               <span class="link-block">
-                <a href="https://huggingface.co/Teensy/teensy-vad-v5" target="_blank"
+                <a href="https://huggingface.co/Teensy/teensy-vad-v6" target="_blank"
                    class="external-link button is-normal is-rounded is-dark">
                   <span class="icon"><i class="fas fa-box-open"></i></span>
-                  <span>Models (v5)</span>
+                  <span>Models (v6)</span>
                 </a>
               </span>
               <span class="link-block">
@@ -161,12 +161,18 @@
                     <td>0.890</td><td>0.868</td><td>0.880</td><td>0.848</td><td>63</td></tr>
                 <tr><td>teensy-v3-80k</td><td>80,373</td><td>321</td>
                     <td>0.894</td><td>0.877</td><td>0.882</td><td>0.861</td><td>66</td></tr>
-                <tr class="is-selected"><td><b>teensy-v5 (20k)</b></td><td>20,449</td><td>87</td>
+                <tr class="is-selected"><td><b>teensy-v6-a1 (250 ms)</b></td><td>24,441</td><td>96</td>
+                    <td>0.9081</td><td>0.8834</td><td>0.8842</td><td>0.8683</td><td>64</td></tr>
+                <tr class="is-selected"><td><b>teensy-v6-a2 (250 ms)</b></td><td>49,249</td><td>204</td>
+                    <td>0.9081</td><td>0.8870</td><td>0.8822</td><td><b>0.8726</b></td><td>66</td></tr>
+                <tr class="is-selected"><td><b>teensy-v6-c (mining)</b></td><td>20,449</td><td>87</td>
+                    <td>0.8957</td><td>0.8799</td><td>0.8853</td><td>0.8594</td><td>63</td></tr>
+                <tr><td>teensy-v5 (20k)</td><td>20,449</td><td>87</td>
                     <td>0.8953</td><td>0.8760</td><td>0.8836</td><td>0.8579</td><td>64</td></tr>
                 <tr class="is-selected"><td><b>teensy-v5-40k</b></td><td>39,609</td><td>162</td>
                     <td>0.8963</td><td>0.8810</td><td><b>0.8853</b></td><td>0.8620</td><td>64</td></tr>
                 <tr class="is-selected"><td><b>teensy-v5-80k</b></td><td>80,373</td><td>321</td>
-                    <td><b>0.9016</b></td><td><b>0.8877</b></td><td>0.8845</td><td>0.8622</td><td>63</td></tr>
+                    <td>0.9016</td><td><b>0.8877</b></td><td>0.8845</td><td>0.8622</td><td>63</td></tr>
                 <tr class="is-selected"><td><b>teensy-v5-100k</b></td><td>99,593</td><td>396</td>
                     <td>0.9008</td><td>0.8865</td><td>0.8823</td><td>0.8596</td><td>63</td></tr>
                 <tr><td>teensy-v4 (20k)</td><td>20,449</td><td>87</td>
@@ -238,6 +244,30 @@
 
     <div class="columns is-centered has-text-centered">
       <div class="column is-full-width">
+        <h2 class="title is-3">The capacity ceiling: context beats capacity</h2>
+        <div class="content">
+          <img src="./static/images/charts/ablation.png" alt="Capacity scaling ablation: v5 family at 100 ms context vs v6 at 250 ms"
+               style="width:100%; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12);">
+          <p>
+            The v6 finding, in one figure. Scaling the v5 family 20k→200k parameters
+            (all at 100&nbsp;ms context) <b>peaks at 80k</b> — TEN AUC 0.8760 → 0.8877 →
+            0.8865 → 0.8827 → 0.8849 — while latency climbs 64→75&nbsp;µs: more
+            parameters <i>hurt</i> past 80k. The fix is not width but window. Widening
+            temporal context from 100&nbsp;ms to 250&nbsp;ms puts <b>every v6 point at
+            ≤49k parameters above the entire v5 capacity curve</b> — v6-a1 (24k) and
+            v6-a2 (49k) both reach TEN F1 0.9081, and v6-a2 posts the family's best
+            AMI AUC (0.8726) with 60% fewer parameters than the v5-80k peak.
+            Silero still leads clean near-mic ranking (TEN AUC 0.9519, recurrent,
+            36× the parameters); teensy leads real rooms (AMI F1 0.88+ vs 0.714).
+            Full details in the
+            <a href="papers/teensy-vad-v6.html">teensy-vad-v6 paper page</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-full-width">
         <h2 class="title is-3">Quantization: QAT makes int8 free</h2>
         <div class="content">
           <img src="./static/images/charts/chart_v4.png" alt="v4 family comparison chart"
@@ -303,7 +333,7 @@
 
     <div class="columns is-centered has-text-centered">
       <div class="column is-full-width">
-        <h2 class="title is-3">Five generations: v1 → v5</h2>
+        <h2 class="title is-3">Six generations: v1 → v6</h2>
         <div class="content">
           <p style="max-width:820px; margin:auto;">
             Each generation changes exactly one thing, so the family timeline reads as a
@@ -343,10 +373,18 @@
                       <a href="https://huggingface.co/Teensy/teensy-vad-3" target="_blank">model</a></td>
                 </tr>
                 <tr class="is-selected">
+                  <td><b>teensy-vad-v6</b><br><span class="is-size-7 has-text-grey">context beats capacity</span></td>
+                  <td>widens temporal context 100 ms → 250 ms (a1/a2); + hard-example mining (c); nothing else changed</td>
+                  <td>same 37.9M frames + MUSAN noise as v5</td>
+                  <td>TEN F1 0.9081 (a1/a2, family record); AMI AUC 0.8726 (a2); 24k–49k params above the whole v5 curve</td>
+                  <td><a href="papers/teensy-vad-v6.html">teensy-vad-v6 paper</a> ·
+                      <a href="https://huggingface.co/Teensy/teensy-vad-v6" target="_blank">model</a></td>
+                </tr>
+                <tr>
                   <td><b>teensy-vad-v5</b><br><span class="is-size-7 has-text-grey">commercial-safe retrain</span></td>
                   <td>identical v4 recipe; MUSAN noise (CC BY 4.0) replaces the NC-licensed share of ESC-50</td>
                   <td>37.9M frames (~100 h), MUSAN noise</td>
-                  <td>TEN AUC 0.8877 (80k, family record); AMI F1 0.8853 (40k)</td>
+                  <td>TEN AUC 0.8877 (80k, 100 ms capacity peak); AMI F1 0.8853 (40k)</td>
                   <td><a href="https://huggingface.co/Teensy/teensy-vad-v5" target="_blank">model card</a> ·
                       <a href="https://huggingface.co/spaces/metacritical/TeensyResearch" target="_blank">Space</a></td>
                 </tr>
@@ -363,13 +401,19 @@
           </div>
           <div class="notification is-light" style="margin-top:18px; text-align:left;">
             <p class="is-size-7 has-text-grey">
-              <b>Published: teensy-v5 (commercial-safe retrain).</b> The v4 recipe
-              retrained on permissively licensed MUSAN noise (CC BY 4.0) — no
-              NC-licensed data — is now released: <b>TEN AUC 0.8877 (80k, a family
-              record)</b>, AMI F1 0.8853 (40k), speed unchanged at 63–64 µs / 20 ms.
-              Weights, ONNX float and 22 KB int8 artifacts on the
+              <b>Published: teensy-v6 (context beats capacity).</b> The current release
+              widens temporal context from 100&nbsp;ms to 250&nbsp;ms (plus a
+              hard-example-mining variant) on the same MUSAN-safe data — no other
+              change: <b>TEN F1 0.9081</b> (v6-a1/a2, family record at 24k–49k params),
+              <b>AMI AUC 0.8726</b> (v6-a2, family best), speed unchanged at
+              63–66&nbsp;µs / 20&nbsp;ms. Weights, ONNX float and 26–50&nbsp;KB int8
+              artifacts on the
+              <a href="https://huggingface.co/Teensy/teensy-vad-v6" target="_blank">teensy-vad-v6 model card</a>
+              (CC BY 4.0 · © 2026 Pankaj Doharey / Metacritical). The previous release,
+              <b>teensy-v5</b> (commercial-safe MUSAN retrain; TEN AUC 0.8877 at 80k —
+              the 100&nbsp;ms capacity peak the v6 ablation measures), remains available on the
               <a href="https://huggingface.co/Teensy/teensy-vad-v5" target="_blank">teensy-vad-v5 model card</a>
-              (CC BY 4.0 · © 2026 Pankaj Doharey / Metacritical).
+              under the same license.
             </p>
           </div>
         </div>
@@ -414,8 +458,9 @@
             numbers share this caveat). Speed figures are from an Apple M2 Pro;
             Celeron-class CPU estimates are engineering extrapolations, not
             measurements. v1–v4 weights inherit ESC-50's non-commercial license;
-            the published v5 retrain (MUSAN noise, CC BY 4.0) is the
-            commercial-safe release.
+            the v5 retrain (MUSAN noise, CC BY 4.0) made the weights
+            commercial-safe, and v6 continues on that same MUSAN-safe data
+            (CC BY 4.0).
           </p>
         </div>
       </div>
@@ -447,9 +492,19 @@
                 teensy-vad-v4 paper · the 100-hour family (20k–100k + QAT)</a>
             </div>
             <div class="column is-half">
+              <a href="https://huggingface.co/Teensy/teensy-vad-v6" target="_blank"
+                 class="button is-fullwidth is-dark is-outlined">
+                teensy-vad-v6 · context beats capacity (250 ms) — current release (CC BY 4.0)</a>
+            </div>
+            <div class="column is-half">
+              <a href="papers/teensy-vad-v6.html"
+                 class="button is-fullwidth is-dark is-outlined">
+                teensy-vad-v6 paper · context beats capacity (+ capacity ablation)</a>
+            </div>
+            <div class="column is-half">
               <a href="https://huggingface.co/Teensy/teensy-vad-v5" target="_blank"
                  class="button is-fullwidth is-dark is-outlined">
-                teensy-vad-v5 · commercial-safe MUSAN retrain (CC BY 4.0) — current release</a>
+                teensy-vad-v5 · commercial-safe MUSAN retrain (CC BY 4.0)</a>
             </div>
             <div class="column is-half">
               <a href="https://huggingface.co/Teensy/teensy-vad-1" target="_blank"
@@ -490,7 +545,7 @@
   author = {Doharey, Pankaj (VoxLogic)},
   year   = {2026},
   url    = {https://huggingface.co/Teensy},
-  note   = {TeensyVAD by VoxLogic — families v1--v5; 20k--100k parameters; 8 kHz native; contact: pankaj@voxlogic.ai}
+  note   = {TeensyVAD by VoxLogic — families v1--v6; 20k--100k parameters; 8 kHz native; contact: pankaj@voxlogic.ai}
 }</code></pre>
         </div>
       </div>

@@ -223,7 +223,7 @@ def main() -> None:
         model, best = train_float(model, tr, va, epochs=args.epochs, bs=args.batch_size,
                                   thr=thr, seed=args.seed)
         meta = dict(sr=8000, n_mels=20, win_ms=25.0, hop_ms=10.0, n_fft=256,
-                    fmin=80.0, fmax=3800.0, deltas=True, context=K,
+                    fmin=80.0, fmax=3800.0, deltas=True, context=args.context,
                     thr_hi=0.5, thr_lo=0.3, hangover_ms=250.0, on_frames=3,
                     arch="mlp", hidden=args.hidden,
                     trained_with="scripts/train_v3.py", data=args.data.name,
