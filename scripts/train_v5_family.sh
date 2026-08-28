@@ -19,7 +19,7 @@ run () {
     echo "=== qat teensy-v5-${TAG}-qat ==="
     $PY -u scripts/train_v3.py --stage qat --data data/prepared_v5 \
         --out "models/teensy-v5-${TAG}.npz" --out-qat "models/teensy-v5-${TAG}-qat.npz" \
-        --qat-epochs 6 --batch-size 2048 > "logs/qat_v5_${TAG}.log" 2>&1
+        --qat-epochs 4 --batch-size 2048 > "logs/qat_v5_${TAG}.log" 2>&1
     tail -1 "logs/qat_v5_${TAG}.log"
   fi
 }
