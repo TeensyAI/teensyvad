@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="description"
+        content="teensy-vad-v7: a 42k-parameter recurrent voice activity detector for telephony — a single-layer GRU beats the entire MLP family on all four real-world metrics and is the fastest model in family history.">
+  <meta name="keywords" content="VAD, voice activity detection, telephony, distillation, GRU, recurrent, on-device">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TeensyVAD-v7: A 42k-Parameter Recurrent Voice Activity Detector for Telephony</title>
+
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro"
+        rel="stylesheet">
+
+  <link rel="stylesheet" href="../static/css/bulma.min.css">
+  <link rel="stylesheet" href="../static/css/bulma-carousel.min.css">
+  <link rel="stylesheet" href="../static/css/bulma-slider.min.css">
+  <link rel="stylesheet" href="../static/css/fontawesome.all.min.css">
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <link rel="stylesheet" href="../static/css/index.css">
+  <link rel="icon" href="../static/images/favicon.svg">
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script defer src="../static/js/fontawesome.all.min.js"></script>
+  <script src="../static/js/bulma-carousel.min.js"></script>
+  <script src="../static/js/bulma-slider.min.js"></script>
+  <script src="../static/js/index.js"></script>
+</head>
+<body>
+<section class="hero">
+  <div class="hero-body">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column has-text-centered">
+          <h1 class="title is-1 publication-title">
+            TeensyVAD-v7: A 42k-Parameter Recurrent Voice Activity Detector for Telephony
+          </h1>
+          <div class="is-size-5 publication-authors">
+            <span class="author-block">
+              <a href="mailto:pankaj@voxlogic.ai">Pankaj Doharey</a><sup>1</sup>
+            </span>
+          </div>
+
+          <div class="is-size-5 publication-authors">
+            <span class="author-block"><sup>1</sup><a href="mailto:pankaj@voxlogic.ai">VoxLogic</a> — TeensyVAD by VoxLogic ·
+              <a href="mailto:pankaj@voxlogic.ai">pankaj@voxlogic.ai</a></span>
+          </div>
+
+          <div class="column has-text-centered">
+            <div class="publication-links">
+              <span class="link-block">
+                <a href="https://huggingface.co/Teensy/teensy-vad-v7" target="_blank"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon"><i class="fas fa-box-open"></i></span>
+                  <span>Models → HF v7 repo</span>
+                </a>
+              </span>
+              <span class="link-block">
+                <a href="../index.html"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon"><i class="fas fa-home"></i></span>
+                  <span>Family Index</span>
+                </a>
+              </span>
+              <span class="link-block">
+                <a href="https://huggingface.co/Teensy/teensy-vad-3/blob/main/BENCHMARKS.md" target="_blank"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon"><i class="far fa-file-alt"></i></span>
+                  <span>Benchmark appendix</span>
+                </a>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Abstract</h2>
+        <div class="content has-text-justified">
+          <p>
+            We present <b>teensy-vad-v7</b>, the seventh generation of the teensyvad family — and its
+            first recurrent model. The v6 capacity ablation showed that at fixed 100&nbsp;ms context,
+            more parameters <i>hurt</i>: the v5 family peaks at 80k (TEN AUC 0.8877) and falls past it,
+            and even v6's widened 250&nbsp;ms window is still a stateless summary. v7's finding is that
+            <b>recurrent memory was the missing ingredient</b>. Replacing the MLP with a single-layer
+            <b>GRU of 96 units</b> (41,809 parameters, 169&nbsp;KB npz), distilled from Silero VAD with
+            chunked backpropagation through time, beats the <b>entire v5/v6 MLP family on all four
+            real-world metrics</b>: TEN F1 0.8992, TEN AUC 0.8934, AMI F1 0.9153, AMI AUC 0.9182. At
+            <b>37.9&nbsp;µs per 20&nbsp;ms streaming chunk</b>, it is also the <b>fastest model in family
+            history</b> (vs 63–75&nbsp;µs for the MLPs). Against the 1.77M-parameter Silero teacher,
+            v7 wins <b>both AMI room metrics</b> (F1 0.9153 vs 0.7136; AUC 0.9182 vs 0.8938); Silero
+            keeps the clean near-mic crown (TEN AUC 0.9519). Weights are <b>CC&nbsp;BY&nbsp;4.0</b> on
+            MUSAN-safe data.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">1 · Introduction</h2>
+        <div class="content has-text-justified">
+          <p>
+            Two generations of evidence pointed the same way. v5's controlled capacity ablation
+            (20k→200k parameters, all at 100&nbsp;ms context, 37.9M training frames) showed TEN AUC
+            <b>peaking at 80k (0.8877) and falling past it</b> — 100k 0.8865, 150k 0.8827, 200k 0.8849 —
+            while latency climbed 64→75&nbsp;µs: capacity has a ceiling, and it is low. v6 attacked the
+            orthogonal axis and widened the input window from 100&nbsp;ms to 250&nbsp;ms, putting every
+            v6 point at ≤49k parameters above the entire v5 curve — but the wider window is still a
+            <i>fixed, stateless summary</i> of the past. The hypothesis for v7: what the family lacked
+            was not width, window, or parameters, but <b>memory</b> — a learned, compressible state that
+            can carry speech/nonspeech evidence across an unbounded past the way the 1.77M-parameter
+            teacher already does. v7 tests that hypothesis by changing exactly one thing: the stateless
+            MLP becomes a recurrent GRU.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">2 · Method</h2>
+        <div class="content has-text-justified">
+          <p>
+            The feature front-end is exactly the family recipe: 8&nbsp;kHz mono, 25&nbsp;ms frames /
+            10&nbsp;ms hop, 20 log-mel filters (80–3800&nbsp;Hz) with band-mean subtraction plus
+            first-order deltas (40 dims/frame). The model is a <b>single-layer GRU with 96 units</b>
+            (41,809 parameters total) followed by a sigmoid projection — the family's first recurrent
+            architecture. Training is in <b>PyTorch</b>, distilling <b>Silero soft labels</b> frame-by-frame
+            over the same MUSAN-safe mixtures as v5/v6, with <b>chunked backpropagation through time in
+            2.5&nbsp;s chunks</b> (state carried across chunks at inference). The shipped runtime is the
+            family's pure-NumPy streaming engine with hand-written GRU recurrence; its output is
+            <b>verified against the PyTorch reference to 1.8e-07</b> max absolute error. Exports: float
+            <code>.npz</code> (169&nbsp;KB) with thresholds in JSON metadata; streaming decisions run
+            through the family's hysteresis + hangover stage with AMI-calibrated thresholds.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-full-width">
+        <h2 class="title is-3">3 · Results</h2>
+        <div class="content">
+          <p>
+            Shared protocol (human-labelled audio — TEN VAD public set and 8 AMI SDM meetings —
+            AMI-dev-calibrated operating points, AUC on raw probabilities):
+          </p>
+          <div class="table-container">
+            <table class="table is-bordered is-striped is-narrow is-hoverable is-fullwidth"
+                   style="font-size:0.82rem;">
+              <thead><tr><th></th><th><b>v7-GRU96 (recommended)</b></th><th>v6-a2 (prev. best)</th><th>v6-a1</th><th>v5-80k</th><th>Silero</th></tr></thead>
+              <tbody>
+                <tr><td>architecture</td><td>GRU-96 (recurrent)</td><td>MLP, 250 ms ctx</td><td>MLP, 250 ms ctx</td><td>MLP, 100 ms ctx</td><td>recurrent</td></tr>
+                <tr><td>params</td><td>41,809</td><td>49,249</td><td>24,441</td><td>80,373</td><td>1,774,000</td></tr>
+                <tr><td>npz (KB)</td><td>169</td><td>204</td><td>96</td><td>321</td><td>2,200</td></tr>
+                <tr><td>TEN F1 (best thr*)</td><td>0.8992</td><td><b>0.9081</b></td><td><b>0.9081</b></td><td>0.9016</td><td><b>0.938</b></td></tr>
+                <tr><td>TEN AUC</td><td><b>0.8934</b></td><td>0.8870</td><td>0.8834</td><td>0.8877</td><td><b>0.9519</b></td></tr>
+                <tr><td>AMI F1 (calibrated)</td><td><b>0.9153</b></td><td>0.8822</td><td>0.8842</td><td>0.8845</td><td>0.7136</td></tr>
+                <tr><td>AMI AUC</td><td><b>0.9182</b></td><td>0.8726</td><td>0.8683</td><td>0.8622</td><td>0.8938</td></tr>
+                <tr><td>µs / 20 ms chunk</td><td><b>37.9</b></td><td>66</td><td>64</td><td>63</td><td>89</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="is-size-7 has-text-grey">teensy-vad-v7 results (verbatim). * tuned on that set — upper bound,
+            like-for-like with FlashVAD's published convention. <b>v7-GRU96</b> beats every v5/v6 MLP on
+            TEN AUC, AMI F1 and AMI AUC at roughly half the v5-80k parameter count, and cuts streaming
+            latency 63–75&nbsp;µs → 37.9&nbsp;µs — the fastest model in family history. Against Silero it
+            wins both AMI room metrics (F1 0.9153 vs 0.7136, AUC 0.9182 vs 0.8938); Silero keeps clean
+            near-mic ranking (TEN AUC 0.9519).</p>
+          <img src="../static/images/charts/chart_v7.png" alt="v7 vs baselines comparison chart"
+               style="width:100%; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12);">
+          <p class="is-size-7 has-text-grey" style="margin-top:6px;">
+            This figure is <b>v7-specific</b>: teensy-v7-GRU96 against the v6 champion (v6-a2), the v5
+            peak (v5-80k) and public baselines on the shared real-world protocol.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">4 · Ablations and negative results</h2>
+        <div class="content has-text-justified">
+          <p>
+            Two documented negatives frame the design. (i) <b>Capacity ceiling</b> (v5 family, 100&nbsp;ms
+            context): growing 80k→200k parameters <i>lowered</i> TEN AUC 0.8877→0.8849 at a +19% latency
+            cost (64→75&nbsp;µs) — more parameters hurt past 80k, which is why v7 adds memory, not width.
+            (ii) <b>Naive data scaling</b>: scaling the training mixtures to 360&nbsp;h with the natural
+            91% speech-frame prior <i>lowered</i> TEN AUC to 0.8586 — the class-prior shift swamps any
+            data benefit. <b>Prior-balanced mixtures are future work</b>; v7 trains on the v5/v6
+            prior-balanced recipe unchanged.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">5 · Limitations</h2>
+        <div class="content has-text-justified">
+          <p>
+            English speech only; no music in training (music reads as "activity"). <b>Silero keeps the
+            clean near-mic crown</b>: the teacher still ranks best by TEN AUC (0.9519 vs v7's 0.8934), so
+            v7's wins are real rooms (both AMI metrics) and speed, not clean near-mic ranking. There is
+            <b>no acoustic echo cancellation</b> — use an upstream echo canceller (e.g. Asterisk's). At
+            distant-room operating points, false-alarm rates remain high on overlapped meeting speech
+            for all systems (labels mark foreground speech only). As a recurrent model, v7 cannot batch
+            through time for offline inference — the family's 0.064&nbsp;µs/frame batched figure remains
+            an MLP-only result.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">6 · License &amp; Availability</h2>
+        <div class="content has-text-justified">
+          <p>
+            Code: MIT. Weights: <b>CC BY 4.0</b> — commercial use permitted with attribution
+            (©&nbsp;2026 Pankaj Doharey / Metacritical, TeensyVAD by VoxLogic), trained on <b>MUSAN-safe
+            data</b> (LibriSpeech train-clean-100 CC BY 4.0, MUSAN noise CC BY 4.0, AMI ambience CC BY 4.0,
+            Silero teacher MIT). All artifacts — float <code>.npz</code> (169&nbsp;KB), ONNX and the pure-NumPy
+            streaming runtime — are on the
+            <a href="https://huggingface.co/Teensy/teensy-vad-v7" target="_blank">teensy-vad-v7 Hugging Face
+            repository</a>. Model files are plain <code>.npz</code> (weights + JSON metadata), inspectable
+            with <code>numpy.load</code>; thresholds ship in the metadata (AMI-calibrated distant-room
+            profile).
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Citation</h2>
+        <div class="content">
+<pre><code>@software{doharey2026teensyvadv7,
+  title  = {TeensyVAD-v7: A 42k-Parameter Recurrent Voice Activity Detector for Telephony},
+  author = {Doharey, Pankaj},
+  year   = {2026},
+  url    = {https://huggingface.co/Teensy/teensy-vad-v7},
+  note   = {TeensyVAD by VoxLogic — family generation v7; contact: pankaj@voxlogic.ai}
+}</code></pre>
+        </div>
+      </div>
+    </div>
+
+</section>
+
+<footer class="footer">
+  <div class="container">
+    <div class="content has-text-centered">
+      <p>
+        <b>TeensyVAD by VoxLogic</b> ·
+        <a href="mailto:pankaj@voxlogic.ai">pankaj@voxlogic.ai</a> ·
+        <a href="../index.html">Family landing</a><br>
+        Site template: <a href="https://github.com/nerfies/nerfies.github.io" target="_blank">Nerfies</a>.
+        Charts and numbers generated by the TeensyVAD reproducible benchmark suite.
+      </p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

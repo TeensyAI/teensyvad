@@ -50,10 +50,10 @@
           <div class="column has-text-centered">
             <div class="publication-links">
               <span class="link-block">
-                <a href="https://huggingface.co/Teensy/teensy-vad-v5" target="_blank"
+                <a href="https://huggingface.co/Teensy/teensy-vad-v7" target="_blank"
                    class="external-link button is-normal is-rounded is-dark">
                   <span class="icon"><i class="fas fa-box-open"></i></span>
-                  <span>Models (v5)</span>
+                  <span>Models (v7)</span>
                 </a>
               </span>
               <span class="link-block">
@@ -148,6 +148,12 @@
                     <th>AMI F1</th><th>AMI AUC</th><th>µs / 20 ms</th></tr>
               </thead>
               <tbody>
+                <tr class="is-selected"><td><b>teensy-v7-GRU96</b></td><td>41,809</td><td>169</td>
+                    <td>0.8992</td><td><b>0.8934</b></td><td><b>0.9153</b></td><td><b>0.9182</b></td><td><b>37.9</b></td></tr>
+                <tr class="is-selected"><td><b>teensy-v6-a2 (250 ms)</b></td><td>49,249</td><td>204</td>
+                    <td>0.9081</td><td>0.8870</td><td>0.8822</td><td>0.8726</td><td>66</td></tr>
+                <tr class="is-selected"><td><b>teensy-v6-a1 (250 ms)</b></td><td>24,441</td><td>96</td>
+                    <td>0.9081</td><td>0.8834</td><td>0.8842</td><td>0.8683</td><td>64</td></tr>
                 <tr><td>teensy-v1</td><td>20,449</td><td>87</td>
                     <td>0.877</td><td>0.848</td><td>0.887</td><td>0.835</td><td>64</td></tr>
                 <tr><td>teensy-v2</td><td>20,449</td><td>87</td>
@@ -157,9 +163,9 @@
                 <tr class="is-selected"><td><b>teensy-v5 (20k)</b></td><td>20,449</td><td>87</td>
                     <td>0.8953</td><td>0.8760</td><td>0.8836</td><td>0.8579</td><td>64</td></tr>
                 <tr class="is-selected"><td><b>teensy-v5-40k</b></td><td>39,609</td><td>162</td>
-                    <td>0.8963</td><td>0.8810</td><td><b>0.8853</b></td><td>0.8620</td><td>64</td></tr>
+                    <td>0.8963</td><td>0.8810</td><td>0.8853</td><td>0.8620</td><td>64</td></tr>
                 <tr class="is-selected"><td><b>teensy-v5-80k</b></td><td>80,373</td><td>321</td>
-                    <td><b>0.9016</b></td><td><b>0.8877</b></td><td>0.8845</td><td>0.8622</td><td>63</td></tr>
+                    <td>0.9016</td><td>0.8877</td><td>0.8845</td><td>0.8622</td><td>63</td></tr>
                 <tr class="is-selected"><td><b>teensy-v5-100k</b></td><td>99,593</td><td>396</td>
                     <td>0.9008</td><td>0.8865</td><td>0.8823</td><td>0.8596</td><td>63</td></tr>
                 <tr><td>teensy-v4 (20k)</td><td>20,449</td><td>87</td>
@@ -179,7 +185,7 @@
                 <tr><td>teensy-v4-100k-qat (int8)</td><td>99,593</td><td>107</td>
                     <td>0.891</td><td>0.876</td><td>0.881</td><td>0.862</td><td>120</td></tr>
                 <tr><td>Silero VAD (teacher)</td><td>1,774,000</td><td>2,200</td>
-                    <td><b>0.938</b></td><td><b>0.952</b></td><td>0.714</td><td><b>0.894</b></td><td>89</td></tr>
+                    <td><b>0.938</b></td><td><b>0.952</b></td><td>0.714</td><td>0.894</td><td>89</td></tr>
                 <tr><td>WebRTC VAD (agg 0)</td><td>~6k (C)</td><td>~50</td>
                     <td>n/a</td><td>n/a</td><td>0.842</td><td>0.760</td><td><b>2</b></td></tr>
                 <tr><td>Energy VAD (adaptive)</td><td>—</td><td>—</td>
@@ -219,6 +225,35 @@
             <a href="https://huggingface.co/Teensy/teensy-vad-v5" target="_blank">teensy-vad-v5 model card</a>
             (CC&nbsp;BY&nbsp;4.0 · © 2026 Pankaj Doharey / Metacritical).
           </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">New: teensy-v7 — the tiny recurrent generation</h2>
+        <div class="content">
+          <img src="./static/images/charts/chart_v7.png" alt="teensy-v7 vs baselines"
+               style="width:100%; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12);">
+          <p style="max-width:820px; margin:auto;">
+            <b>teensy-v7</b> is the current release — and the family's first recurrent model. The v6
+            capacity ablation showed more parameters don't help at 100&nbsp;ms of context;
+            v7's answer is that <b>memory was the missing ingredient</b>: a single-layer
+            <b>GRU with 96 units</b> (41,809 parameters, 169&nbsp;KB npz), distilled from Silero, replaces
+            the stateless MLP. It <b>beats the entire v5/v6 MLP family on all four real-world metrics</b> —
+            TEN F1 0.8992, TEN AUC 0.8934, AMI F1 0.9153, AMI AUC 0.9182 — and at
+            <b>37.9&nbsp;µs per 20&nbsp;ms chunk it is the fastest model in family history</b>
+            (vs 63–75&nbsp;µs for the MLPs). It also <b>beats Silero on both AMI room metrics</b>
+            (F1 0.9153 vs 0.7136, AUC 0.9182 vs 0.8938); Silero keeps the clean near-mic crown
+            (TEN AUC 0.9519). Weights are <b>CC&nbsp;BY&nbsp;4.0</b> on MUSAN-safe data.
+          </p>
+          <div style="margin-top:12px;">
+            <a href="https://huggingface.co/Teensy/teensy-vad-v7" target="_blank"
+               class="external-link button is-normal is-rounded is-dark">
+              <span class="icon"><i class="fas fa-box-open"></i></span>
+              <span>teensy-vad-v7 on Hugging Face</span>
+            </a>
+          </div>
         </div>
       </div>
     </div>

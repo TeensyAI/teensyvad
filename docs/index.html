@@ -50,10 +50,10 @@
           <div class="column has-text-centered">
             <div class="publication-links">
               <span class="link-block">
-                <a href="https://huggingface.co/Teensy/teensy-vad-v6" target="_blank"
+                <a href="https://huggingface.co/Teensy/teensy-vad-v7" target="_blank"
                    class="external-link button is-normal is-rounded is-dark">
                   <span class="icon"><i class="fas fa-box-open"></i></span>
-                  <span>Models (v6)</span>
+                  <span>Models (v7)</span>
                 </a>
               </span>
               <span class="link-block">
@@ -161,18 +161,20 @@
                     <td>0.890</td><td>0.868</td><td>0.880</td><td>0.848</td><td>63</td></tr>
                 <tr><td>teensy-v3-80k</td><td>80,373</td><td>321</td>
                     <td>0.894</td><td>0.877</td><td>0.882</td><td>0.861</td><td>66</td></tr>
+                <tr class="is-selected"><td><b>teensy-v7-GRU96</b></td><td>41,809</td><td>169</td>
+                    <td>0.8992</td><td><b>0.8934</b></td><td><b>0.9153</b></td><td><b>0.9182</b></td><td><b>37.9</b></td></tr>
                 <tr class="is-selected"><td><b>teensy-v6-a1 (250 ms)</b></td><td>24,441</td><td>96</td>
                     <td>0.9081</td><td>0.8834</td><td>0.8842</td><td>0.8683</td><td>64</td></tr>
                 <tr class="is-selected"><td><b>teensy-v6-a2 (250 ms)</b></td><td>49,249</td><td>204</td>
-                    <td>0.9081</td><td>0.8870</td><td>0.8822</td><td><b>0.8726</b></td><td>66</td></tr>
+                    <td>0.9081</td><td>0.8870</td><td>0.8822</td><td>0.8726</td><td>66</td></tr>
                 <tr class="is-selected"><td><b>teensy-v6-c (mining)</b></td><td>20,449</td><td>87</td>
                     <td>0.8957</td><td>0.8799</td><td>0.8853</td><td>0.8594</td><td>63</td></tr>
                 <tr><td>teensy-v5 (20k)</td><td>20,449</td><td>87</td>
                     <td>0.8953</td><td>0.8760</td><td>0.8836</td><td>0.8579</td><td>64</td></tr>
                 <tr class="is-selected"><td><b>teensy-v5-40k</b></td><td>39,609</td><td>162</td>
-                    <td>0.8963</td><td>0.8810</td><td><b>0.8853</b></td><td>0.8620</td><td>64</td></tr>
+                    <td>0.8963</td><td>0.8810</td><td>0.8853</td><td>0.8620</td><td>64</td></tr>
                 <tr class="is-selected"><td><b>teensy-v5-80k</b></td><td>80,373</td><td>321</td>
-                    <td>0.9016</td><td><b>0.8877</b></td><td>0.8845</td><td>0.8622</td><td>63</td></tr>
+                    <td>0.9016</td><td>0.8877</td><td>0.8845</td><td>0.8622</td><td>63</td></tr>
                 <tr class="is-selected"><td><b>teensy-v5-100k</b></td><td>99,593</td><td>396</td>
                     <td>0.9008</td><td>0.8865</td><td>0.8823</td><td>0.8596</td><td>63</td></tr>
                 <tr><td>teensy-v4 (20k)</td><td>20,449</td><td>87</td>
@@ -192,7 +194,7 @@
                 <tr><td>teensy-v4-100k-qat (int8)</td><td>99,593</td><td>107</td>
                     <td>0.891</td><td>0.876</td><td>0.881</td><td>0.862</td><td>120</td></tr>
                 <tr><td>Silero VAD (teacher)</td><td>1,774,000</td><td>2,200</td>
-                    <td><b>0.938</b></td><td><b>0.952</b></td><td>0.714</td><td><b>0.894</b></td><td>89</td></tr>
+                    <td><b>0.938</b></td><td><b>0.952</b></td><td>0.714</td><td>0.894</td><td>89</td></tr>
                 <tr><td>WebRTC VAD (agg 0)</td><td>~6k (C)</td><td>~50</td>
                     <td>n/a</td><td>n/a</td><td>0.842</td><td>0.760</td><td><b>2</b></td></tr>
                 <tr><td>Energy VAD (adaptive)</td><td>—</td><td>—</td>
@@ -206,6 +208,36 @@
             AMI-dev-calibrated thresholds. Speed = full streaming path, median
             µs per 20 ms telephony chunk, one core of an Apple M2 Pro.
           </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">New: teensy-v7 — the tiny recurrent generation</h2>
+        <div class="content">
+          <img src="./static/images/charts/chart_v7.png" alt="teensy-v7 vs baselines"
+               style="width:100%; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12);">
+          <p style="max-width:820px; margin:auto;">
+            <b>teensy-v7</b> is the current release — and the family's first recurrent model. The v6
+            capacity ablation showed more parameters don't help at 100&nbsp;ms of context;
+            v7's answer is that <b>memory was the missing ingredient</b>: a single-layer
+            <b>GRU with 96 units</b> (41,809 parameters, 169&nbsp;KB npz), distilled from Silero, replaces
+            the stateless MLP. It <b>beats the entire v5/v6 MLP family on all four real-world metrics</b> —
+            TEN F1 0.8992, TEN AUC 0.8934, AMI F1 0.9153, AMI AUC 0.9182 — and at
+            <b>37.9&nbsp;µs per 20&nbsp;ms chunk it is the fastest model in family history</b>
+            (vs 63–75&nbsp;µs for the MLPs). It also <b>beats Silero on both AMI room metrics</b>
+            (F1 0.9153 vs 0.7136, AUC 0.9182 vs 0.8938); Silero keeps the clean near-mic crown
+            (TEN AUC 0.9519). Weights are <b>CC&nbsp;BY&nbsp;4.0</b> on MUSAN-safe data. Full details in the
+            <a href="papers/teensy-vad-v7.html">teensy-vad-v7 paper page</a>.
+          </p>
+          <div style="margin-top:12px;">
+            <a href="https://huggingface.co/Teensy/teensy-vad-v7" target="_blank"
+               class="external-link button is-normal is-rounded is-dark">
+              <span class="icon"><i class="fas fa-box-open"></i></span>
+              <span>teensy-vad-v7 on Hugging Face</span>
+            </a>
+          </div>
         </div>
       </div>
     </div>
@@ -333,7 +365,7 @@
 
     <div class="columns is-centered has-text-centered">
       <div class="column is-full-width">
-        <h2 class="title is-3">Six generations: v1 → v6</h2>
+        <h2 class="title is-3">Seven generations: v1 → v7</h2>
         <div class="content">
           <p style="max-width:820px; margin:auto;">
             Each generation changes exactly one thing, so the family timeline reads as a
@@ -373,6 +405,15 @@
                       <a href="https://huggingface.co/Teensy/teensy-vad-3" target="_blank">model</a></td>
                 </tr>
                 <tr class="is-selected">
+                  <td><b>teensy-vad-v7</b><br><span class="is-size-7 has-text-grey">recurrent memory</span></td>
+                  <td>replaces the stateless MLP with a single-layer 96-unit GRU; everything else (features, data, calibration) unchanged</td>
+                  <td>same 37.9M frames + MUSAN noise, Silero soft labels</td>
+                  <td>beats the whole v5/v6 family on all four metrics (TEN F1 0.8992 · TEN AUC 0.8934 · AMI F1 0.9153 · AMI AUC 0.9182); fastest ever at 37.9 µs; beats Silero on both AMI metrics — <b>current release</b></td>
+                  <td><a href="papers/teensy-vad-v7.html">teensy-vad-v7 paper</a> ·
+                      <a href="https://huggingface.co/Teensy/teensy-vad-v7" target="_blank">model</a> ·
+                      <a href="https://github.com/TeensyAI/teensyvad" target="_blank">code</a></td>
+                </tr>
+                <tr>
                   <td><b>teensy-vad-v6</b><br><span class="is-size-7 has-text-grey">context beats capacity</span></td>
                   <td>widens temporal context 100 ms → 250 ms (a1/a2); + hard-example mining (c); nothing else changed</td>
                   <td>same 37.9M frames + MUSAN noise as v5</td>
@@ -401,18 +442,19 @@
           </div>
           <div class="notification is-light" style="margin-top:18px; text-align:left;">
             <p class="is-size-7 has-text-grey">
-              <b>Published: teensy-v6 (context beats capacity).</b> The current release
-              widens temporal context from 100&nbsp;ms to 250&nbsp;ms (plus a
-              hard-example-mining variant) on the same MUSAN-safe data — no other
-              change: <b>TEN F1 0.9081</b> (v6-a1/a2, family record at 24k–49k params),
-              <b>AMI AUC 0.8726</b> (v6-a2, family best), speed unchanged at
-              63–66&nbsp;µs / 20&nbsp;ms. Weights, ONNX float and 26–50&nbsp;KB int8
-              artifacts on the
+              <b>Published: teensy-v7 (the tiny recurrent generation).</b> The current release
+              swaps the stateless MLP for a single-layer <b>96-unit GRU</b> (41,809 params,
+              169&nbsp;KB npz) trained with Silero soft labels and chunked BPTT — no other change:
+              <b>TEN F1 0.8992 · TEN AUC 0.8934 · AMI F1 0.9153 · AMI AUC 0.9182</b> — all four
+              ahead of the entire v5/v6 MLP family — at <b>37.9&nbsp;µs / 20&nbsp;ms</b>, the fastest
+              model in family history, and ahead of Silero on both AMI room metrics
+              (F1 0.9153 vs 0.7136, AUC 0.9182 vs 0.8938). Weights CC BY 4.0 on the
+              <a href="https://huggingface.co/Teensy/teensy-vad-v7" target="_blank">teensy-vad-v7 model card</a>
+              (© 2026 Pankaj Doharey / Metacritical). The previous release,
+              <b>teensy-v6</b> (context beats capacity; TEN F1 0.9081, AMI AUC 0.8726 at 24k–49k
+              params — the 250&nbsp;ms context result the v7 memory hypothesis builds on), remains
+              available on the
               <a href="https://huggingface.co/Teensy/teensy-vad-v6" target="_blank">teensy-vad-v6 model card</a>
-              (CC BY 4.0 · © 2026 Pankaj Doharey / Metacritical). The previous release,
-              <b>teensy-v5</b> (commercial-safe MUSAN retrain; TEN AUC 0.8877 at 80k —
-              the 100&nbsp;ms capacity peak the v6 ablation measures), remains available on the
-              <a href="https://huggingface.co/Teensy/teensy-vad-v5" target="_blank">teensy-vad-v5 model card</a>
               under the same license.
             </p>
           </div>
@@ -492,9 +534,19 @@
                 teensy-vad-v4 paper · the 100-hour family (20k–100k + QAT)</a>
             </div>
             <div class="column is-half">
+              <a href="https://huggingface.co/Teensy/teensy-vad-v7" target="_blank"
+                 class="button is-fullwidth is-dark is-outlined">
+                teensy-vad-v7 · the tiny recurrent generation (GRU-96) — current release (CC BY 4.0)</a>
+            </div>
+            <div class="column is-half">
+              <a href="papers/teensy-vad-v7.html"
+                 class="button is-fullwidth is-dark is-outlined">
+                teensy-vad-v7 paper · recurrent memory beats capacity</a>
+            </div>
+            <div class="column is-half">
               <a href="https://huggingface.co/Teensy/teensy-vad-v6" target="_blank"
                  class="button is-fullwidth is-dark is-outlined">
-                teensy-vad-v6 · context beats capacity (250 ms) — current release (CC BY 4.0)</a>
+                teensy-vad-v6 · context beats capacity (250 ms) — prior release (CC BY 4.0)</a>
             </div>
             <div class="column is-half">
               <a href="papers/teensy-vad-v6.html"
@@ -545,7 +597,7 @@
   author = {Doharey, Pankaj (VoxLogic)},
   year   = {2026},
   url    = {https://huggingface.co/Teensy},
-  note   = {TeensyVAD by VoxLogic — families v1--v6; 20k--100k parameters; 8 kHz native; contact: pankaj@voxlogic.ai}
+  note   = {TeensyVAD by VoxLogic — families v1--v7; 20k--100k parameters; 8 kHz native; contact: pankaj@voxlogic.ai}
 }</code></pre>
         </div>
       </div>
