@@ -70,6 +70,23 @@ Full transparency — two scaling attempts did **not** beat this checkpoint:
   utterances push the training prior to 91 % speech frames and the model
   over-predicts. Prior-balanced mixtures are the follow-up.
 
+## Architecture ablation: tiny causal transformer
+
+The same recipe also trained a **Kyutai-style tiny causal transformer**
+(d_model 64 × 3 layers, 4 heads, 250-frame = 2.5 s attention window,
+120,753 params — `teensy-v7-tt.npz` in this repo):
+
+| model | params | TEN F1* | TEN AUC | AMI F1 | AMI AUC | µs/20ms |
+|---|---:|---:|---:|---:|---:|---:|
+| teensy-v7-GRU96 | 41,809 | 0.8992 | 0.8934 | 0.9153 | 0.9182 | 37.9 |
+| teensy-v7-tt (transformer) | 120,753 | 0.8738 | 0.7403 | **0.9224** | 0.9034 | **34.4** |
+
+Take-away: the transformer posts the family's **best AMI F1 (0.9224)** and
+the **lowest latency (34.4 µs)**, but its windowed-attention ranking
+**degrades sharply on clean near-mic (TEN AUC 0.7403)** — the GRU's lossy
+but unbounded state remains the balanced champion. Attention wins rooms;
+recurrence wins ranking.
+
 ## Files
 
 | file | use |
