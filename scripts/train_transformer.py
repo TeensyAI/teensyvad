@@ -65,6 +65,8 @@ def main() -> None:
     ap.add_argument("--epochs", type=int, default=8)
     ap.add_argument("--batches-per-epoch", type=int, default=1500)
     ap.add_argument("--lr", type=float, default=1e-3)
+    ap.add_argument("--qat-epochs", type=int, default=3,
+                    help="QAT fine-tune epochs after float training (0 = off)")
     ap.add_argument("--out", type=Path, default=Path("models/teensy-v7-tt.npz"))
     args = ap.parse_args()
 
@@ -174,6 +176,47 @@ def main() -> None:
                 _export(f1)                    # save-best immediately
             next_val += args.batches_per_epoch
     print("TRAINING_COMPLETE", flush=True)
+
+    # ---- QAT fine-tune: fake-quant all Linear weights each step ----
+    if args.qat_epochs > 0:
+        def fake_q(w):
+            s_ = w.abs().amax(dim=1, keepdim=True).clamp(min=1e-12) / 127.0
+            rq = (w / s_).round().clamp(-127, 127)
+            return w + (rq * s_ - w).detach()
+        qparams = [mod.weight for mod in model.modules()
+                   if isinstance(mod, nn.Linear)]
+        qopt = torch.optim.Adam(model.parameters(), lr=args.lr * 0.1)
+        model.train()
+        print(f"QAT fine-tune {args.qat_epochs} epochs …", flush=True)
+        for ep in range(1, args.qat_epochs + 1):
+            tot = 0.0
+            for it in range(args.batches_per_epoch // 5):
+                masters = [pp.data.clone() for pp in qparams]
+                for pp in qparams:
+                    pp.data = fake_q(pp.data)
+                utt = rng.integers(0, len(clip_len), size=args.batch)
+                starts = bounds[utt]; lens = clip_len[utt]
+                offs = starts + (rng.random(args.batch) * np.maximum(
+                    lens - args.chunk, 1)).astype(np.int64)
+                Xb = np.stack([np.asarray(F[o:o + args.chunk],
+                                          dtype=np.float32) for o in offs])
+                yb = np.stack([np.asarray(yteach[o:o + args.chunk],
+                                          dtype=np.float32) for o in offs])
+                qopt.zero_grad(); opt.zero_grad()
+                lo = model(torch.tensor(norm(Xb)))
+                loss = bce(lo, torch.tensor(yb))
+                loss.backward()
+                qopt.step()
+                for pp, mast in zip(qparams, masters):
+                    pp.data.copy_(mast)
+                tot += float(loss)
+            f1 = eval_val()
+            print(f"[qat] epoch {ep:3d}  loss {tot/(args.batches_per_epoch//5):.4f}  "
+                  f"val_f1 {f1:.4f}", flush=True)
+            if f1 >= best["f1"]:
+                best = {"f1": f1}
+                _export(f1)
+
     print(f"best val_f1 {best['f1']:.4f}  ({time.time()-t0:.0f}s)", flush=True)
 
 

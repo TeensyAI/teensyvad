@@ -53,8 +53,15 @@ def collect_utt_speakers(root: Path, limit: int, rng):
 
 def build_example(rng, speech, pools: dict, sr=SR):
     """→ (mixed, snr_value, speech_start_samples, speech_len_samples)."""
-    lead = float(rng.uniform(0.15, 1.0))
-    tail = float(rng.uniform(0.15, 1.0))
+    # prior-balanced padding: fixed 0.15-1.0 s padding made long utterances
+    # push the speech-frame prior to 91 % (the v7-360h failure). Scale the
+    # noise padding so the speech fraction lands in 0.72-0.88 regardless of
+    # utterance length.
+    f_target = float(rng.uniform(0.72, 0.88))
+    sp_sec = len(speech) / sr
+    pad_total = min(sp_sec * (1.0 - f_target) / f_target, 6.0)
+    lead = float(rng.uniform(0.25, 0.75)) * pad_total
+    tail = pad_total - lead
 
     def noise(n):
         kinds = [k for k in NOISE_MIX if NOISE_MIX[k] > 0]

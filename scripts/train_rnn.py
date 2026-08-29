@@ -28,9 +28,10 @@ SR = 8000
 
 
 class TinyGRUTorch(nn.Module):
-    def __init__(self, in_dim: int = 40, hidden: int = 96, head: int = 24):
+    def __init__(self, in_dim: int = 40, hidden: int = 96, head: int = 24,
+                 layers: int = 1):
         super().__init__()
-        self.gru = nn.GRU(in_dim, hidden, batch_first=True)
+        self.gru = nn.GRU(in_dim, hidden, num_layers=layers, batch_first=True)
         self.h1 = nn.Linear(hidden, head)
         self.h2 = nn.Linear(head, 1)
 
@@ -44,6 +45,8 @@ def main() -> None:
     ap.add_argument("--data", type=Path, default=Path("data/prepared_v5"))
     ap.add_argument("--val", type=Path, default=Path("data/prepared/val.distill.npz"))
     ap.add_argument("--hidden", type=int, default=96)
+    ap.add_argument("--layers", type=int, default=1,
+                    help="stacked GRU layers (params ≈ 139k + 222k per extra layer at H=192)")
     ap.add_argument("--head", type=int, default=24)
     ap.add_argument("--chunk", type=int, default=250)
     ap.add_argument("--batch", type=int, default=256, help="sequences per batch")
@@ -55,6 +58,8 @@ def main() -> None:
                     help="after training, calibrate thr on AMI dev via "
                          "scripts/eval_gru.py --calibrate")
     ap.add_argument("--lr", type=float, default=2e-3)
+    ap.add_argument("--qat-epochs", type=int, default=3,
+                    help="QAT fine-tune epochs after float training (0 = off)")
     ap.add_argument("--out", type=Path, default=Path("models/teensy-v7-gru.npz"))
     args = ap.parse_args()
 
@@ -72,7 +77,7 @@ def main() -> None:
 
     in_dim = F.shape[1]
     rng = np.random.default_rng(23)
-    model = TinyGRUTorch(in_dim, args.hidden, args.head).to(dev)
+    model = TinyGRUTorch(in_dim, args.hidden, args.head, layers=args.layers).to(dev)
     with torch.no_grad():                                # input normalisation
         chunk = np.asarray(F[:1_000_000], dtype=np.float64)
         model.gru.flatten_parameters()
@@ -120,24 +125,30 @@ def main() -> None:
     def _export(args, model, mean40, std40, val_f1):
         sd = model.state_dict()
         H = args.hidden
+        L = args.layers
         import json as _json
-        wiz, wir, win = (sd["gru.weight_ih_l0"].numpy()[H:2*H].T,
-                         sd["gru.weight_ih_l0"].numpy()[0:H].T,
-                         sd["gru.weight_ih_l0"].numpy()[2*H:3*H].T)
-        whz, whr, whn = (sd["gru.weight_hh_l0"].numpy()[H:2*H].T,
-                         sd["gru.weight_hh_l0"].numpy()[0:H].T,
-                         sd["gru.weight_hh_l0"].numpy()[2*H:3*H].T)
-        npz = {
-            "W/Wiz": wiz, "W/Wir": wir, "W/Win": win,
-            "W/Whz": whz, "W/Whr": whr, "W/Whn": whn,
-            "b/z": (sd["gru.bias_ih_l0"].numpy()[H:2*H] + sd["gru.bias_hh_l0"].numpy()[H:2*H]),
-            "b/r": (sd["gru.bias_ih_l0"].numpy()[0:H] + sd["gru.bias_hh_l0"].numpy()[0:H]),
-            "b/n": (sd["gru.bias_ih_l0"].numpy()[2*H:3*H] + sd["gru.bias_hh_l0"].numpy()[2*H:3*H]),
+        npz = {}
+        for li in range(L):
+            ih = sd[f"gru.weight_ih_l{li}"].numpy()   # (3H, in) rows r,z,n
+            hh = sd[f"gru.weight_hh_l{li}"].numpy()
+            bi = sd[f"gru.bias_ih_l{li}"].numpy()
+            bhh = sd[f"gru.bias_hh_l{li}"].numpy()
+            src_in = in_dim if li == 0 else H
+            npz[f"gru/L{li}/Wiz"] = ih[H:2*H, :src_in].T
+            npz[f"gru/L{li}/Wir"] = ih[0:H, :src_in].T
+            npz[f"gru/L{li}/Win"] = ih[2*H:3*H, :src_in].T
+            npz[f"gru/L{li}/Whz"] = hh[H:2*H, :].T
+            npz[f"gru/L{li}/Whr"] = hh[0:H, :].T
+            npz[f"gru/L{li}/Whn"] = hh[2*H:3*H, :].T
+            npz[f"gru/L{li}/bz"] = bi[H:2*H] + bhh[H:2*H]
+            npz[f"gru/L{li}/br"] = bi[0:H] + bhh[0:H]
+            npz[f"gru/L{li}/bn"] = bi[2*H:3*H] + bhh[2*H:3*H]
+        npz = {**npz,
             "Wh/h1": sd["h1.weight"].numpy().T, "bh/h1": sd["h1.bias"].numpy(),
             "Wh/h2": sd["h2.weight"].numpy().T, "bh/h2": sd["h2.bias"].numpy(),
             "in_mean": mean40.astype(np.float32), "in_std": std40.astype(np.float32),
             "meta": np.array(_json.dumps(dict(
-                arch="gru", hidden=args.hidden, head=args.head, sr=SR,
+                arch="gru", hidden=args.hidden, layers=args.layers, head=args.head, sr=SR,
                 win_ms=25.0, hop_ms=10.0, n_fft=256, n_mels=20,
                 fmin=80.0, fmax=3800.0, deltas=False, context=0,
                 thr_hi=0.5, thr_lo=0.3, hangover_ms=250.0, on_frames=3,
@@ -190,6 +201,45 @@ def main() -> None:
     if best["state"] is not None:
         model.load_state_dict(best["state"])
 
+    # ---- QAT fine-tune: fake-quant all recurrent/linear weights each step ----
+    if args.qat_epochs > 0:
+        def fake_q(w):
+            s = w.abs().amax(dim=1, keepdim=True).clamp(min=1e-12) / 127.0
+            rq = (w / s).round().clamp(-127, 127)
+            return w + (rq * s - w).detach()      # straight-through estimator
+        qparams = [m.weight for n, m in model.named_modules()
+                   if isinstance(m, (nn.GRU, nn.Linear))]
+        qopt = torch.optim.Adam(model.parameters(), lr=args.lr * 0.1)
+        model.train()
+        print(f"QAT fine-tune {args.qat_epochs} epochs "
+              f"(int8-simulated weights) …", flush=True)
+        for ep in range(1, args.qat_epochs + 1):
+            tot = 0.0
+            for it in range(args.batches_per_epoch // 5):
+                masters = [p.data.clone() for p in qparams]
+                for p in qparams:
+                    p.data = fake_q(p.data)
+                utt = rng.integers(0, len(clip_len), size=args.batch)
+                starts = bounds[utt]; lens = clip_len[utt]
+                offs = starts + (rng.random(args.batch) * np.maximum(
+                    lens - args.chunk, 1)).astype(np.int64)
+                Xb = np.stack([np.asarray(F[o:o + args.chunk],
+                                          dtype=np.float32) for o in offs])
+                yb = np.stack([np.asarray(yteach[o:o + args.chunk],
+                                          dtype=np.float32) for o in offs])
+                opt.zero_grad(); qopt.zero_grad()
+                lo, _ = model(torch.tensor(norm(Xb)))
+                loss = bce(lo, torch.tensor(yb))
+                loss.backward()
+                qopt.step()
+                for p, mast in zip(qparams, masters):
+                    p.data.copy_(mast)               # restore float masters
+                tot += float(loss)
+            f1 = eval_val()
+            print(f"[qat] epoch {ep:3d}  loss {tot/(args.batches_per_epoch//5):.4f}  "
+                  f"val_f1 {f1:.4f}", flush=True)
+            _export(args, model, mean40, std40, f1)   # keep best QAT exported
+
     # ---- export to the numpy runtime format (teensyvad/rnn.py) ----
     sd = model.state_dict()
     H = args.hidden
@@ -210,7 +260,7 @@ def main() -> None:
         "Wh/h2": sd["h2.weight"].numpy().T, "bh/h2": sd["h2.bias"].numpy(),
         "in_mean": mean40.astype(np.float32), "in_std": std40.astype(np.float32),
         "meta": np.array(json_meta := __import__("json").dumps(dict(
-            arch="gru", hidden=args.hidden, head=args.head, sr=SR,
+            arch="gru", hidden=args.hidden, layers=args.layers, head=args.head, sr=SR,
             win_ms=25.0, hop_ms=10.0, n_fft=256, n_mels=20,
             fmin=80.0, fmax=3800.0, deltas=False, context=0,
             thr_hi=0.5, thr_lo=0.3, hangover_ms=250.0, on_frames=3,

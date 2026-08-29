@@ -1,16 +1,13 @@
-"""TinyGRU — a minimal recurrent VAD core (the v7 experiment).
+"""TinyGRU — numpy streaming runtime for the teensy-v7/v8 recurrent VADs.
 
-Design goal: give the family what the stateless MLP cannot have — memory.
-A GRU carries state across the whole stream, replacing the fixed 100–250 ms
-context window. Distilled from Silero like the rest of the family.
+    m = TinyGRU.load("teensy-v7-gru96.npz")
+    m.reset_state(1)
+    for frame in mel_frames:            # (40,) per 10 ms @ 8 kHz
+        p = m.step(frame)               # P(speech) — state persists
 
-    x (B, T, 40)  →  GRU(H)  →  dense(H→24)  →  dense(24→1)  →  logit/frame
-
-Everything is numpy (forward AND hand-written BPTT backward), consistent
-with the teensyvad "no ML framework" ethos. Pure-python reference speed is
-fine on Apple Accelerate sgemm for our scale.
-
-Param count at H=96: 3 gates × (40·H + H·H + 2H) ≈ 39.7k + head 2.3k ≈ 42k.
+Supports stacked layers (v8: GRU-192 × 3 ≈ 594k params). Training runs in
+torch (scripts/train_rnn.py); this runtime is verified frame-exact against
+the torch model (max |Δp| < 1e-4 over full streams).
 """
 
 from __future__ import annotations
@@ -24,97 +21,93 @@ SIGMOID = lambda x: 1.0 / (1.0 + np.exp(-x))
 
 
 class TinyGRU:
-    """Single-layer GRU + 2-layer head, frame-level VAD."""
+    """Stacked GRU (1–N layers) + 2-layer head, frame-level VAD.
+
+    Per layer li: gates z/r/n with inputs [x (li==0) or h_{li-1}] and
+    h_{li-1}; head h1→relu→h2 reads the LAST layer's output.
+    """
 
     def __init__(self, in_dim: int = 40, hidden: int = 96, head: int = 24,
-                 seed: int = 7):
+                 seed: int = 7, layers: int = 1):
         self.in_dim, self.hidden, self.head = in_dim, hidden, head
+        self.layers = max(1, int(layers))
         rng = np.random.default_rng(seed)
 
-        def recurrent(std):                      # (H,H) recurrent blocks
+        def recurrent(std):
             return rng.uniform(-std, std, size=(hidden, hidden)).astype(np.float32)
 
-        def input_(std):                         # (in,H) input blocks
+        def input_(std):
             return rng.uniform(-std, std, size=(in_dim, hidden)).astype(np.float32)
 
-        def bias():                              # forget-gate bias trick on z
+        def bias():
             return np.concatenate([np.full(1, 1.0, dtype=np.float32),
                                    np.zeros(hidden - 1, dtype=np.float32)])
 
         ru = 1.0 / np.sqrt(hidden)
-        iu = 1.0 / np.sqrt(in_dim)
-        self.W = {k: v for k, v in {
-            "Wiz": input_(iu), "Wir": input_(iu), "Win": input_(iu),
-            "Whz": recurrent(ru), "Whr": recurrent(ru), "Whn": recurrent(ru),
-        }.items()}
-        self.b = {"z": bias(), "r": np.zeros(hidden, np.float32),
-                  "n": np.zeros(hidden, np.float32)}
+        self.layers_W, self.layers_b = [], []
+        for li in range(self.layers):
+            src = in_dim if li == 0 else hidden
+            iu = 1.0 / np.sqrt(src)
+            self.layers_W.append({
+                "Wiz": input_(iu), "Wir": input_(iu), "Win": input_(iu),
+                "Whz": recurrent(ru), "Whr": recurrent(ru), "Whn": recurrent(ru),
+            })
+            self.layers_b.append({"z": bias(), "r": np.zeros(hidden, np.float32),
+                                  "n": np.zeros(hidden, np.float32)})
         self.Wh = {"h1": (rng.uniform(-ru, ru, size=(hidden, head))).astype(np.float32),
                    "h2": (rng.uniform(-1.0, 1.0, size=(head, 1))).astype(np.float32)}
         self.bh = {"h1": np.zeros(head, np.float32), "h2": np.zeros(1, np.float32)}
         self.in_mean = np.zeros(in_dim, np.float32)
         self.in_std = np.ones(in_dim, np.float32)
         self.meta: dict = {}
-        self._h: np.ndarray | None = None        # streaming state (B, H)
-
-    # ------------------------------------------------------------ params --
-    def arrays(self) -> dict[str, np.ndarray]:
-        d = {f"W/{k}": v for k, v in self.W.items()}
-        d.update({f"b/{k}": v for k, v in self.b.items()})
-        d.update({f"Wh/{k}": v for k, v in self.Wh.items()})
-        d.update({f"bh/{k}": v for k, v in self.bh.items()})
-        return d
+        self._h: np.ndarray | None = None        # streaming state (L, B, H)
 
     def n_params(self) -> int:
         return int(sum(v.size for v in self.arrays().values()))
 
-    # ---------------------------------------------------------- training --
+    def reset_state(self, batch: int = 1) -> None:
+        self._h = np.zeros((self.layers, batch, self.hidden), dtype=np.float32)
+
     def _norm(self, x: np.ndarray) -> np.ndarray:
         return (x - self.in_mean) / self.in_std
-
-    def forward_chunk(self, X: np.ndarray, h0: np.ndarray):
-        """X (B, T, in) → logits (B, T). Inference-only numpy forward;
-        training happens in torch (scripts/train_rnn.py), which is the same
-        convention as the family: numpy runtime, torch teacher/tooling."""
-        B, T, _ = X.shape
-        logits = np.empty((B, T), dtype=np.float32)
-        h = h0
-        for t in range(T):
-            xt = X[:, t, :]
-            zg = SIGMOID(xt @ self.W["Wiz"] + h @ self.W["Whz"] + self.b["z"])
-            rg = SIGMOID(xt @ self.W["Wir"] + h @ self.W["Whr"] + self.b["r"])
-            ng = np.tanh(xt @ self.W["Win"] + rg * (h @ self.W["Whn"]) + self.b["n"])
-            h = (1.0 - zg) * ng + zg * h
-            hid = np.maximum(h @ self.Wh["h1"] + self.bh["h1"], 0.0)
-            logits[:, t] = (hid @ self.Wh["h2"] + self.bh["h2"]).ravel()
-        return logits
-
-    # --------------------------------------------------------- streaming --
-    def reset_state(self, batch: int = 1) -> None:
-        self._h = np.zeros((batch, self.hidden), dtype=np.float32)
 
     def step(self, x: np.ndarray) -> np.ndarray:
         """One frame (in,) or (B,in) → P(speech). State persists across calls."""
         batch = 1 if x.ndim == 1 else x.shape[0]
-        if self._h is None or self._h.shape[0] != batch:
+        if self._h is None or self._h.shape[1] != batch:
             self.reset_state(batch=batch)
-        h = self._h
-        zg = SIGMOID(x @ self.W["Wiz"] + h @ self.W["Whz"] + self.b["z"])
-        rg = SIGMOID(x @ self.W["Wir"] + h @ self.W["Whr"] + self.b["r"])
-        ng = np.tanh(x @ self.W["Win"] + rg * (h @ self.W["Whn"]) + self.b["n"])
-        self._h = (1.0 - zg) * ng + zg * h
-        hid = np.maximum(self._h @ self.Wh["h1"] + self.bh["h1"], 0.0)
+        h = np.ascontiguousarray(self._norm(x).reshape(batch, -1), dtype=np.float32)
+        for li in range(self.layers):
+            Wl, bl = self.layers_W[li], self.layers_b[li]
+            hp = self._h[li]
+            zg = SIGMOID(h @ Wl["Wiz"] + hp @ Wl["Whz"] + bl["z"])
+            rg = SIGMOID(h @ Wl["Wir"] + hp @ Wl["Whr"] + bl["r"])
+            ng = np.tanh(h @ Wl["Win"] + rg * (hp @ Wl["Whn"]) + bl["n"])
+            h = (1.0 - zg) * ng + zg * hp
+            self._h[li] = h
+        hid = np.maximum(h @ self.Wh["h1"] + self.bh["h1"], 0.0)
         return SIGMOID((hid @ self.Wh["h2"] + self.bh["h2"]).ravel())
 
     def probs_seq(self, X: np.ndarray) -> np.ndarray:
-        """Stateful pass over a sequence (N, 40) → (N,) probabilities."""
+        """Stateful pass over a sequence (N, in) → (N,) probabilities."""
         self.reset_state(batch=1)
-        out = np.empty(len(X), dtype=np.float32)
-        for i in range(len(X)):
-            out[i] = self.step(X[i])
+        out = np.empty(len(X), dtype=np.float64)
+        Xn = self._norm(np.asarray(X, dtype=np.float32))
+        for i in range(len(Xn)):
+            out[i] = self.step(Xn[i])
         return out
 
-    # -------------------------------------------------------- persistence --
+    def arrays(self) -> dict[str, np.ndarray]:
+        d = {}
+        for li, (Wl, bl) in enumerate(zip(self.layers_W, self.layers_b)):
+            for k, v in Wl.items():
+                d[f"gru/L{li}/{k}"] = v
+            for k, v in bl.items():
+                d[f"gru/L{li}/b{k}"] = v
+        d.update({f"Wh/{k}": v for k, v in self.Wh.items()})
+        d.update({f"bh/{k}": v for k, v in self.bh.items()})
+        return d
+
     def save(self, path: str | Path, extra_meta: dict | None = None) -> None:
         meta = dict(self.meta)
         if extra_meta:
@@ -129,12 +122,15 @@ class TinyGRU:
     def load(cls, path: str | Path) -> "TinyGRU":
         with np.load(str(path), allow_pickle=True) as z:
             meta = json.loads(str(z["meta"]))
+            L = int(meta.get("layers", 1))
             m = cls(in_dim=len(z["in_mean"]), hidden=int(meta["hidden"]),
-                    head=int(meta.get("head", 24)))
-            for k, v in m.W.items():
-                m.W[k] = z[f"W/{k}"]
-            for k, v in m.b.items():
-                m.b[k] = z[f"b/{k}"]
+                    head=int(meta.get("head", 24)), layers=L)
+            for li in range(L):
+                Wl, bl = m.layers_W[li], m.layers_b[li]
+                for k in Wl:
+                    Wl[k] = z[f"gru/L{li}/{k}"]
+                for k in bl:
+                    bl[k] = z[f"gru/L{li}/b{k}"]
             for k, v in m.Wh.items():
                 m.Wh[k] = z[f"Wh/{k}"]
             for k, v in m.bh.items():
