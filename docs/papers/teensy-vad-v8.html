@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="description"
+        content="teensy-vad-v8: a 500k-parameter scaling ablation for tiny voice activity detection — four ~500k models test whether scale beats fit; the 42k v7 champion remains the shipping model.">
+  <meta name="keywords" content="VAD, voice activity detection, telephony, distillation, scaling ablation, GRU, transformer, MLP, QAT, int8, on-device">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TeensyVAD-v8: A 500k-Parameter Scaling Ablation for Tiny Voice Activity Detection</title>
+
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro"
+        rel="stylesheet">
+
+  <link rel="stylesheet" href="../static/css/bulma.min.css">
+  <link rel="stylesheet" href="../static/css/bulma-carousel.min.css">
+  <link rel="stylesheet" href="../static/css/bulma-slider.min.css">
+  <link rel="stylesheet" href="../static/css/fontawesome.all.min.css">
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <link rel="stylesheet" href="../static/css/index.css">
+  <link rel="icon" href="../static/images/favicon.svg">
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script defer src="../static/js/fontawesome.all.min.js"></script>
+  <script src="../static/js/bulma-carousel.min.js"></script>
+  <script src="../static/js/bulma-slider.min.js"></script>
+  <script src="../static/js/index.js"></script>
+</head>
+<body>
+<section class="hero">
+  <div class="hero-body">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column has-text-centered">
+          <h1 class="title is-1 publication-title">
+            TeensyVAD-v8: A 500k-Parameter Scaling Ablation for Tiny Voice Activity Detection
+          </h1>
+          <div class="is-size-5 publication-authors">
+            <span class="author-block">
+              <a href="mailto:pankaj@voxlogic.ai">Pankaj Doharey</a><sup>1</sup>
+            </span>
+          </div>
+
+          <div class="is-size-5 publication-authors">
+            <span class="author-block"><sup>1</sup><a href="mailto:pankaj@voxlogic.ai">VoxLogic</a> — TeensyVAD by VoxLogic ·
+              <a href="mailto:pankaj@voxlogic.ai">pankaj@voxlogic.ai</a></span>
+          </div>
+
+          <div class="column has-text-centered">
+            <div class="publication-links">
+              <span class="link-block">
+                <a href="https://huggingface.co/Teensy/teensy-vad-v8" target="_blank"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon"><i class="fas fa-box-open"></i></span>
+                  <span>Models → HF v8 repo</span>
+                </a>
+              </span>
+              <span class="link-block">
+                <a href="../index.html"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon"><i class="fas fa-home"></i></span>
+                  <span>Family Index</span>
+                </a>
+              </span>
+              <span class="link-block">
+                <a href="https://huggingface.co/datasets/Teensy/teensy-vad-v3/raw/main/BENCHMARKS.md" target="_blank"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon"><i class="far fa-file-alt"></i></span>
+                  <span>Benchmark appendix</span>
+                </a>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Abstract</h2>
+        <div class="content has-text-justified">
+          <p>
+            We present <b>teensy-vad-v8</b>, the eighth generation of the teensyvad family — a
+            <b>500k-parameter scaling ablation</b>. The v7 champion, a 42k-parameter single-layer GRU,
+            beats every larger model in family history, which raises the obvious question: was 42k simply
+            too small a budget for scale to pay, or does scale itself not fit this problem? v8 answers it
+            by training four ~500k models — <b>549k–582k parameters, 13–14× the champion</b> — under an
+            identical, upgraded recipe: 660&nbsp;h of prior-balanced LibriSpeech+MUSAN mixtures, Silero
+            distillation, and quantization-aware fine-tuning. The answer is <b>negative but informative</b>:
+            no v8 model dominates the champion. Deep nets win real rooms (deep F1 0.919–0.923) but collapse
+            on clean near-mic ranking (TEN AUC 0.73–0.78 vs 0.89); the context-MLP scales best, and its int8
+            QAT variant matches the champion's TEN AUC at family-best TEN F1 0.9133 — with its artifact
+            4× smaller than the float version. <b>v7-GRU96 remains the shipping champion</b>; v8 is a
+            research release. Weights are <b>CC&nbsp;BY&nbsp;4.0</b> on MUSAN-safe data.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">1 · Introduction</h2>
+        <div class="content has-text-justified">
+          <p>
+            v7 closed the capacity debate inside the MLP family: a <b>single-layer GRU of 96 units</b>
+            (41,809 parameters, 169&nbsp;KB) distilled from Silero beats the entire v5/v6 MLP family on all
+            four real-world metrics (TEN F1 0.8992, TEN AUC 0.8934, AMI F1 0.9153, AMI AUC 0.9182) at
+            37.9&nbsp;µs per 20&nbsp;ms chunk. But a 42k model winning against everything larger leaves the
+            scaling question open: the v5 ablation peaked at 80k on 100&nbsp;h of data with 100&nbsp;ms of
+            context — maybe a 42k recurrent model is a local optimum that a <i>genuinely larger</i> model,
+            given more data, better-balanced data, and modern training, would pass. v8 is that test:
+            <b>push the budget to ~500k parameters</b> (roughly where the 1.77M-parameter Silero teacher
+            becomes reachable) while upgrading everything else at once — 6.6× the training data
+            (660&nbsp;h), prior-balanced mixture construction, and QAT fine-tuning — across the three
+            architecture families the project has used (recurrent, attention, stateless-with-context).
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">2 · Method</h2>
+        <div class="content has-text-justified">
+          <p>
+            Four ~500k models are trained under one recipe. (i) <b>v8-GRU-192×3</b>: a 3-layer GRU with
+            192 units per layer in a residual-free stack (582k parameters) — the v7 recurrence hypothesis
+            scaled up. (ii) <b>v8-transformer d128×4</b>: a causal transformer, 4 layers, 8 heads,
+            d<sub>model</sub>&nbsp;128, over a 2.5&nbsp;s window (570k parameters). (iii/iv) <b>v8-a3
+            context-MLP</b>, ctx&nbsp;25 frames (250&nbsp;ms) with 448/224 hidden units (549k parameters),
+            trained in float and fine-tuned to <b>int8 with QAT</b> (554&nbsp;KB → 4× smaller than the
+            2,157&nbsp;KB float artifact). All four share the family feature front-end (8&nbsp;kHz mono,
+            25&nbsp;ms frames / 10&nbsp;ms hop, 20 log-mel filters + deltas) and are trained on
+            <b>660&nbsp;h of prior-balanced LibriSpeech+MUSAN mixtures</b> (speech prior 0.72 vs the natural
+            0.91) with <b>Silero distillation</b>, each finished with <b>2 epochs of QAT fine-tuning</b>.
+            Inference uses the family's pure-<b>NumPy streaming runtimes</b>; all timings are the full
+            streaming path per 20&nbsp;ms chunk.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-full-width">
+        <h2 class="title is-3">3 · Results</h2>
+        <div class="content">
+          <p>
+            Shared protocol (human-labelled audio — TEN VAD public set and 8 AMI SDM meetings —
+            AMI-dev-calibrated operating points, AUC on raw probabilities):
+          </p>
+          <div class="table-container">
+            <table class="table is-bordered is-striped is-narrow is-hoverable is-fullwidth"
+                   style="font-size:0.82rem;">
+              <thead><tr><th></th><th>v8-GRU-192×3</th><th>v8-transformer d128×4</th><th>v8-a3 MLP float</th><th>v8-a3 int8 QAT</th><th><b>v7-GRU96 (champion)</b></th><th>Silero (1.77M)</th><th>WebRTC</th></tr></thead>
+              <tbody>
+                <tr><td>params</td><td>582k</td><td>570k</td><td>549k</td><td>549k</td><td><b>42k</b></td><td>1,774k</td><td>~6k</td></tr>
+                <tr><td>KB</td><td>2,285</td><td>2,229</td><td>2,157</td><td><b>554</b></td><td><b>169</b></td><td>2,200</td><td>~50</td></tr>
+                <tr><td>TEN F1 (best thr*)</td><td>0.8503</td><td>0.8726</td><td>0.9122</td><td><b>0.9133</b></td><td>0.8992</td><td><b>0.9398</b></td><td>n/a</td></tr>
+                <tr><td>TEN AUC</td><td>0.7843</td><td>0.7255</td><td>0.8844</td><td><b>0.8949</b></td><td><b>0.8934</b></td><td><b>0.9514</b></td><td>n/a</td></tr>
+                <tr><td>AMI F1 (calibrated)</td><td><b>0.9191</b></td><td><b>0.9234</b></td><td>0.8949</td><td>0.8852</td><td><b>0.9153</b></td><td>0.7136</td><td>0.8419</td></tr>
+                <tr><td>AMI AUC</td><td><b>0.9227</b></td><td>0.8969</td><td>0.8880</td><td>0.8889</td><td><b>0.9182</b></td><td>0.8938</td><td>0.7602</td></tr>
+                <tr><td>µs / 20 ms chunk</td><td>138.8</td><td><b>84.7</b></td><td><b>75.0</b></td><td>281.9*</td><td><b>37.9</b></td><td>90.2</td><td><b>1.8</b></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="is-size-7 has-text-grey">teensy-vad-v8 results (verbatim). * tuned on that set — upper bound,
+            like-for-like with FlashVAD's published convention. *the v8-a3 int8 figure is an
+            <b>unoptimized NumPy int8 runtime</b>; its artifact is 4× smaller than the float version.
+            <b>No v8 model dominates the 42k v7 champion</b>: the deep nets win AMI rooms, the a3-int8
+            matches champion TEN AUC at family-best TEN F1, and v7 stays 2–7× faster than every v8 model.</p>
+          <img src="../static/images/charts/chart_v8.png" alt="v8 vs baselines comparison chart"
+               style="width:100%; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12);">
+          <p class="is-size-7 has-text-grey" style="margin-top:6px;">
+            This figure is <b>v8-specific</b>: the four ~500k models against the v7-GRU96 champion and public
+            baselines on the shared real-world protocol.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">4 · Findings</h2>
+        <div class="content has-text-justified">
+          <p>
+            <b>(1) Scale did not beat fit.</b> No v8 model dominates the 42k champion. Deep nets win AMI
+            rooms (F1 0.919–0.923) but collapse on clean near-mic ranking (TEN AUC 0.73–0.78 vs 0.89).
+            <b>(2) The context-MLP scaled best.</b> a3-int8 matches v7's TEN AUC with family-best TEN F1
+            0.9133 at 13× size. <b>(3) QAT won.</b> int8 fine-tuning <i>improved</i> TEN ranking
+            (0.8844→0.8949); QAT is validated at 500k. <b>(4) Recurrence &gt; attention</b> at every tested
+            scale for clean-audio ranking. <b>(5) Honest caveat:</b> only ~1.8 training passes over
+            660&nbsp;h — under-training is a confound; scale may still win with proportional compute.
+            <b>v7-GRU96 remains the shipping champion.</b>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">5 · Ablations &amp; Corrections</h2>
+        <div class="content has-text-justified">
+          <p>
+            <b>Correction to the v7 record.</b> The v7 documentation attributed the 360&nbsp;h failure to
+            speech-frame prior imbalance; the root cause was later found to be a <b>filename-sort bug in the
+            labeling pipeline</b> (lexicographic ordering scrambles utterances past #10,000 with %05d names).
+            The prior-balanced padding fix shipped in v8 remains beneficial (0.72 speech prior vs 0.91), but
+            the 360&nbsp;h numbers themselves were <b>artifacts of scrambled labels</b>.
+          </p>
+          <p>
+            <b>Capacity ceiling, recapped.</b> The v5 ablation showed TEN AUC peaking at 80k and falling
+            past it; v6 showed a wider window beats width; v7 showed memory beats both. v8 extends the
+            picture: even at ~500k parameters, 660&nbsp;h, and QAT, <b>extra capacity still does not
+            dominate a well-fit 42k recurrent model</b> — the architecture/data fit, not the parameter
+            count, remains the binding constraint at telephony scale.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">6 · Limitations</h2>
+        <div class="content has-text-justified">
+          <p>
+            <b>Under-training is a confound</b>: the four v8 models saw only ~1.8 training passes over
+            660&nbsp;h, so the negative scaling result may partly reflect budget, not scale itself — scale
+            may still win with proportional compute. The <b>int8 NumPy streaming runtime is
+            unoptimized</b> (281.9&nbsp;µs vs 75.0&nbsp;µs float); int8's speed case awaits real int8 BLAS
+            kernels, though its artifact is 4× smaller. Training is <b>English-only</b> (LibriSpeech read
+            speech). And <b>Silero keeps the clean near-mic crown</b>: the 1.77M-parameter teacher still
+            ranks best by TEN AUC (0.9514), so none of the family — at any scale — yet contests clean
+            near-mic ranking.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">7 · License &amp; Availability</h2>
+        <div class="content has-text-justified">
+          <p>
+            Code: MIT. Weights: <b>CC BY 4.0</b> — commercial use permitted with attribution
+            (©&nbsp;2026 Pankaj Doharey / Metacritical, TeensyVAD by VoxLogic), trained on <b>MUSAN-safe
+            data</b> (LibriSpeech CC BY 4.0, MUSAN noise CC BY 4.0, Silero teacher MIT). All artifacts —
+            the four ~500k models (GRU-192×3, transformer d128×4, a3 float and a3 int8 QAT) with the
+            pure-NumPy streaming runtimes — are on the
+            <a href="https://huggingface.co/Teensy/teensy-vad-v8" target="_blank">teensy-vad-v8 Hugging Face
+            repository</a>. Model files are plain <code>.npz</code> (weights + JSON metadata), inspectable
+            with <code>numpy.load</code>; thresholds ship in the metadata (AMI-calibrated distant-room
+            profile).
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Citation</h2>
+        <div class="content">
+<pre><code>@software{doharey2026teensyvadv8,
+  title  = {TeensyVAD-v8: A 500k-Parameter Scaling Ablation for Tiny Voice Activity Detection},
+  author = {Doharey, Pankaj},
+  year   = {2026},
+  url    = {https://huggingface.co/Teensy/teensy-vad-v8},
+  note   = {TeensyVAD by VoxLogic — family generation v8; contact: pankaj@voxlogic.ai}
+}</code></pre>
+        </div>
+      </div>
+    </div>
+
+</section>
+
+<footer class="footer">
+  <div class="container">
+    <div class="content has-text-centered">
+      <p>
+        <b>TeensyVAD by VoxLogic</b> ·
+        <a href="mailto:pankaj@voxlogic.ai">pankaj@voxlogic.ai</a> ·
+        <a href="../index.html">Family landing</a><br>
+        Site template: <a href="https://github.com/nerfies/nerfies.github.io" target="_blank">Nerfies</a>.
+        Charts and numbers generated by the TeensyVAD reproducible benchmark suite.
+      </p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

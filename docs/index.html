@@ -166,6 +166,15 @@
 <tr><td>teensy-v7-tt (transformer)</td><td>120,753</td><td>486</td>
                     <td>0.8738</td><td>0.7403</td><td><b>0.9224</b></td><td>0.9034</td><td><b>34.4</b></td></tr>
 
+                <tr><td>teensy-v8-GRU-192×3</td><td>582k</td><td>2,285</td>
+                    <td>0.8503</td><td>0.7843</td><td><b>0.9191</b></td><td><b>0.9227</b></td><td>138.8</td></tr>
+                <tr><td>teensy-v8-transformer d128×4</td><td>570k</td><td>2,229</td>
+                    <td>0.8726</td><td>0.7255</td><td><b>0.9234</b></td><td>0.8969</td><td>84.7</td></tr>
+                <tr><td>teensy-v8-a3 MLP (float)</td><td>549k</td><td>2,157</td>
+                    <td>0.9122</td><td>0.8844</td><td>0.8949</td><td>0.8880</td><td>75.0</td></tr>
+                <tr class="is-selected"><td><b>teensy-v8-a3 int8 QAT</b> — v8's best</td><td>549k</td><td><b>554</b></td>
+                    <td><b>0.9133</b></td><td><b>0.8949</b></td><td>0.8852</td><td>0.8889</td><td>281.9**</td></tr>
+
                 <tr class="is-selected"><td><b>teensy-v6-a1 (250 ms)</b></td><td>24,441</td><td>96</td>
                     <td>0.9081</td><td>0.8834</td><td>0.8842</td><td>0.8683</td><td>64</td></tr>
                 <tr class="is-selected"><td><b>teensy-v6-a2 (250 ms)</b></td><td>49,249</td><td>204</td>
@@ -210,6 +219,8 @@
             published TEN numbers (F1 0.889 / AUC 0.882 / FAR 26.3%). AMI F1 at
             AMI-dev-calibrated thresholds. Speed = full streaming path, median
             µs per 20 ms telephony chunk, one core of an Apple M2 Pro.
+            **unoptimized NumPy int8 runtime; artifact 4× smaller than float. v8 models are a research
+            release — v7-GRU96 remains the shipping champion.
           </p>
         </div>
       </div>
@@ -239,6 +250,40 @@
                class="external-link button is-normal is-rounded is-dark">
               <span class="icon"><i class="fas fa-box-open"></i></span>
               <span>teensy-vad-v7 on Hugging Face</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">New: teensy-v8 — the 500k scaling ablation</h2>
+        <div class="content">
+          <img src="./static/images/charts/chart_v8.png" alt="teensy-v8 vs baselines"
+               style="width:100%; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12);">
+          <p style="max-width:820px; margin:auto;">
+            <b>teensy-v8</b> is a research release — four ~500k models (3-layer GRU-192, causal
+            transformer d128×4, context-MLP a3 float and int8 QAT) trained on 660&nbsp;h of prior-balanced
+            LibriSpeech+MUSAN mixtures with Silero distillation and QAT fine-tuning, to test whether scale
+            beats the 42k v7 champion. The answer is negative but informative: <b>no v8 model dominates
+            v7-GRU96</b> — deep nets win AMI rooms (F1 0.919–0.923) but collapse on clean near-mic ranking
+            (TEN AUC 0.73–0.78 vs 0.89); the context-MLP scaled best, and QAT <i>improved</i> its TEN
+            ranking (0.8844→0.8949) at family-best TEN F1 0.9133 with a 4× smaller int8 artifact.
+            <b>v7-GRU96 remains the shipping champion</b>; the honest caveat is that only ~1.8 training
+            passes over 660&nbsp;h leaves under-training as a confound. Full details in the
+            <a href="papers/teensy-vad-v8.html">teensy-vad-v8 paper page</a>.
+          </p>
+          <div style="margin-top:12px;">
+            <a href="https://huggingface.co/Teensy/teensy-vad-v8" target="_blank"
+               class="external-link button is-normal is-rounded is-dark">
+              <span class="icon"><i class="fas fa-box-open"></i></span>
+              <span>teensy-vad-v8 on Hugging Face</span>
+            </a>
+            <a href="papers/teensy-vad-v8.html"
+               class="external-link button is-normal is-rounded is-dark">
+              <span class="icon"><i class="fas fa-file-alt"></i></span>
+              <span>v8 paper page</span>
             </a>
           </div>
         </div>
@@ -296,6 +341,10 @@
             36× the parameters); teensy leads real rooms (AMI F1 0.88+ vs 0.714).
             Full details in the
             <a href="papers/teensy-vad-v6.html">teensy-vad-v6 paper page</a>.
+            <b>Correction (v8):</b> the v7-recorded 360&nbsp;h failure was not prior imbalance but a
+            <b>filename-sort bug in the labeling pipeline</b> — the prior-balanced fix remains beneficial,
+            but those 360&nbsp;h numbers were artifacts of scrambled labels (see the
+            <a href="papers/teensy-vad-v8.html">v8 paper</a>).
           </p>
         </div>
       </div>
@@ -368,7 +417,7 @@
 
     <div class="columns is-centered has-text-centered">
       <div class="column is-full-width">
-        <h2 class="title is-3">Seven generations: v1 → v7</h2>
+        <h2 class="title is-3">Eight generations: v1 → v8</h2>
         <div class="content">
           <p style="max-width:820px; margin:auto;">
             Each generation changes exactly one thing, so the family timeline reads as a
@@ -411,10 +460,18 @@
                   <td><b>teensy-vad-v7</b><br><span class="is-size-7 has-text-grey">recurrent memory</span></td>
                   <td>replaces the stateless MLP with a single-layer 96-unit GRU; everything else (features, data, calibration) unchanged</td>
                   <td>same 37.9M frames + MUSAN noise, Silero soft labels</td>
-                  <td>beats the whole v5/v6 family on all four metrics (TEN F1 0.8992 · TEN AUC 0.8934 · AMI F1 0.9153 · AMI AUC 0.9182); fastest ever at 37.9 µs; beats Silero on both AMI metrics — <b>current release</b></td>
+                  <td>beats the whole v5/v6 family on all four metrics (TEN F1 0.8992 · TEN AUC 0.8934 · AMI F1 0.9153 · AMI AUC 0.9182); fastest ever at 37.9 µs; beats Silero on both AMI metrics — <b>SHIPPING CHAMPION</b></td>
                   <td><a href="papers/teensy-vad-v7.html">teensy-vad-v7 paper</a> ·
                       <a href="https://huggingface.co/Teensy/teensy-vad-v7" target="_blank">model</a> ·
                       <a href="https://github.com/TeensyAI/teensyvad" target="_blank">code</a></td>
+                </tr>
+                <tr>
+                  <td><b>teensy-vad-v8</b><br><span class="is-size-7 has-text-grey">500k scaling ablation</span></td>
+                  <td>four ~500k models (GRU-192×3, causal transformer d128×4, context-MLP a3 float/int8) — research release, not a replacement</td>
+                  <td>660 h prior-balanced LibriSpeech+MUSAN, Silero distillation, QAT fine-tune</td>
+                  <td>scale did not beat fit — no v8 model dominates the 42k champion; a3-int8 matches v7 TEN AUC at family-best TEN F1 0.9133 (554 KB); <b>v7 remains SHIPPING CHAMPION</b></td>
+                  <td><a href="papers/teensy-vad-v8.html">teensy-vad-v8 paper</a> ·
+                      <a href="https://huggingface.co/Teensy/teensy-vad-v8" target="_blank">model</a></td>
                 </tr>
                 <tr>
                   <td><b>teensy-vad-v6</b><br><span class="is-size-7 has-text-grey">context beats capacity</span></td>

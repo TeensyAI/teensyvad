@@ -148,10 +148,19 @@
                     <th>AMI F1</th><th>AMI AUC</th><th>µs / 20 ms</th></tr>
               </thead>
               <tbody>
-                <tr class="is-selected"><td><b>teensy-v7-GRU96</b></td><td>41,809</td><td>169</td>
+                <tr class="is-selected"><td><b>teensy-v7-GRU96</b> — SHIPPING CHAMPION</td><td>41,809</td><td>169</td>
                     <td>0.8992</td><td><b>0.8934</b></td><td><b>0.9153</b></td><td><b>0.9182</b></td><td><b>37.9</b></td></tr>
 <tr><td>teensy-v7-tt (transformer)</td><td>120,753</td><td>486</td>
                     <td>0.8738</td><td>0.7403</td><td><b>0.9224</b></td><td>0.9034</td><td><b>34.4</b></td></tr>
+
+                <tr><td>teensy-v8-GRU-192×3</td><td>582k</td><td>2,285</td>
+                    <td>0.8503</td><td>0.7843</td><td><b>0.9191</b></td><td><b>0.9227</b></td><td>138.8</td></tr>
+                <tr><td>teensy-v8-transformer d128×4</td><td>570k</td><td>2,229</td>
+                    <td>0.8726</td><td>0.7255</td><td><b>0.9234</b></td><td>0.8969</td><td>84.7</td></tr>
+                <tr><td>teensy-v8-a3 MLP (float)</td><td>549k</td><td>2,157</td>
+                    <td>0.9122</td><td>0.8844</td><td>0.8949</td><td>0.8880</td><td>75.0</td></tr>
+                <tr class="is-selected"><td><b>teensy-v8-a3 int8 QAT</b> — v8's best</td><td>549k</td><td><b>554</b></td>
+                    <td><b>0.9133</b></td><td><b>0.8949</b></td><td>0.8852</td><td>0.8889</td><td>281.9**</td></tr>
 
                 <tr class="is-selected"><td><b>teensy-v6-a2 (250 ms)</b></td><td>49,249</td><td>204</td>
                     <td>0.9081</td><td>0.8870</td><td>0.8822</td><td>0.8726</td><td>66</td></tr>
@@ -201,6 +210,8 @@
             published TEN numbers (F1 0.889 / AUC 0.882 / FAR 26.3%). AMI F1 at
             AMI-dev-calibrated thresholds. Speed = full streaming path, median
             µs per 20 ms telephony chunk, one core of an Apple M2 Pro.
+            **unoptimized NumPy int8 runtime; artifact 4× smaller than float. v8 models are a research
+            release — v7-GRU96 remains the shipping champion.
           </p>
         </div>
       </div>
@@ -255,6 +266,34 @@
                class="external-link button is-normal is-rounded is-dark">
               <span class="icon"><i class="fas fa-box-open"></i></span>
               <span>teensy-vad-v7 on Hugging Face</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">New: teensy-v8 — the 500k scaling ablation</h2>
+        <div class="content">
+          <img src="./static/images/charts/chart_v8.png" alt="teensy-v8 vs baselines"
+               style="width:100%; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12);">
+          <p style="max-width:820px; margin:auto;">
+            <b>teensy-v8</b> is a research release — four ~500k models (3-layer GRU-192, causal
+            transformer d128×4, context-MLP a3 float and int8 QAT) trained on 660&nbsp;h of prior-balanced
+            LibriSpeech+MUSAN mixtures with Silero distillation and QAT fine-tuning, to test whether scale
+            beats the 42k v7 champion. The answer is negative but informative: <b>no v8 model dominates
+            v7-GRU96</b> — deep nets win AMI rooms (F1 0.919–0.923) but collapse on clean near-mic ranking
+            (TEN AUC 0.73–0.78 vs 0.89); the context-MLP scaled best, and QAT <i>improved</i> its TEN
+            ranking (0.8844→0.8949) at family-best TEN F1 0.9133 with a 4× smaller int8 artifact.
+            <b>v7-GRU96 remains the shipping champion</b>; the honest caveat is that only ~1.8 training
+            passes over 660&nbsp;h leaves under-training as a confound.
+          </p>
+          <div style="margin-top:12px;">
+            <a href="https://huggingface.co/Teensy/teensy-vad-v8" target="_blank"
+               class="external-link button is-normal is-rounded is-dark">
+              <span class="icon"><i class="fas fa-box-open"></i></span>
+              <span>teensy-vad-v8 on Hugging Face</span>
             </a>
           </div>
         </div>
