@@ -13,6 +13,7 @@ the state persists across the whole call, which only helps.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
 from pathlib import Path
@@ -58,6 +59,11 @@ def main() -> None:
                     help="after training, calibrate thr on AMI dev via "
                          "scripts/eval_gru.py --calibrate")
     ap.add_argument("--lr", type=float, default=2e-3)
+    ap.add_argument("--pos-weight", type=float, default=0.0,
+                    help="BCE pos_weight for speech frames. 0 = auto: "
+                         "(1-prior)/prior clamped to [0.25, 4] from a training "
+                         "sample, so a speech-heavy mixture prior cannot "
+                         "collapse the model to all-ones at thr 0.5.")
     ap.add_argument("--qat-epochs", type=int, default=3,
                     help="QAT fine-tune epochs after float training (0 = off)")
     ap.add_argument("--out", type=Path, default=Path("models/teensy-v7-gru.npz"))
@@ -84,6 +90,19 @@ def main() -> None:
     opt = torch.optim.Adam(model.parameters(), lr=args.lr)
     bce = torch.nn.functional.binary_cross_entropy_with_logits
 
+    # Loss prior correction + a printed degenerate floor. F1@0.5 on a
+    # speech-heavy val set is bounded below by the all-ones predictor
+    # (2p/(1+p)); every score near that floor means the model is not
+    # discriminating and "best checkpoint" selection would be noise.
+    _prior_sample = np.asarray(yteach[:min(len(yteach), 5_000_000)], dtype=np.float32)
+    prior = float(_prior_sample.mean())
+    pos_w = args.pos_weight if args.pos_weight > 0 else min(max((1 - prior) / max(prior, 1e-6), 0.25), 4.0)
+    pos_w_t = torch.tensor(pos_w)
+    val_prior = float(yv.mean())
+    print(f"train prior {prior:.4f}  pos_weight {pos_w:.3f}  "
+          f"val prior {val_prior:.4f}  all-ones F1 floor {2*val_prior/(1+val_prior):.4f}",
+          flush=True)
+
     # normalisation stats folded into a tensor the numpy runtime can load
     mean40 = chunk.mean(0)
     std40 = np.maximum(chunk.std(0), 1e-3)
@@ -92,24 +111,41 @@ def main() -> None:
     def norm(X):
         return ((X - mean40) / std40).astype(np.float32)
 
-    def eval_val() -> float:
-        """Frame F1 @ 0.5 over the val set with stateful streaming."""
+    def eval_val() -> tuple[float, float]:
+        """Frame F1 @ 0.5 plus rank AUC (threshold-free) over the val set.
+
+        AUC is the checkpoint-selection metric: F1@0.5 saturates at the
+        all-ones floor when the model over-predicts speech, while AUC keeps
+        ranking models apart no matter where the operating point sits.
+        """
         model.eval()
-        h = torch.zeros(1, 1, args.hidden)
-        preds = []
+        h = torch.zeros(args.layers, 1, args.hidden)
+        logits = []
         with torch.no_grad():
             for s in range(0, len(Fv), 20_000):
                 xb = torch.tensor(norm(Fv[s:s + 20_000])).unsqueeze(0)
                 lo, h = model(xb, h.contiguous())        # (1, T, H) state carried
-                preds.append((lo.reshape(-1) > 0).float().numpy())
+                logits.append(lo.reshape(-1).numpy())
         model.train()
-        pred = np.concatenate(preds)
+        logit = np.concatenate(logits).astype(np.float64)
+        pred = (logit > 0).astype(np.float32)
         tp = float(((pred == 1) & (yv == 1)).sum())
         fp = float(((pred == 1) & (yv == 0)).sum())
         fn = float(((pred == 0) & (yv == 1)).sum())
-        return 2 * tp / max(2 * tp + fp + fn, 1.0)
+        f1 = 2 * tp / max(2 * tp + fp + fn, 1.0)
+        pos = yv == 1
+        n_pos, n_neg = int(pos.sum()), int((~pos).sum())
+        if n_pos == 0 or n_neg == 0:
+            return f1, 0.5
+        sorter = np.argsort(logit, kind="mergesort")
+        s = logit[sorter]
+        uniq, first, counts = np.unique(s, return_index=True, return_counts=True)
+        midrank = (first + 1 + first + counts) / 2.0          # 1-based midranks
+        ranks = midrank[np.searchsorted(uniq, logit)]         # tie-aware ranks
+        auc = float((ranks[pos].sum() - n_pos * (n_pos + 1) / 2.0) / (n_pos * n_neg))
+        return f1, auc
 
-    best = {"f1": -1.0, "state": None}
+    best = {"f1": -1.0, "auc": -1.0, "state": None}
 
     ckpt = Path(str(args.out) + ".ckpt")
     done = 0
@@ -122,7 +158,7 @@ def main() -> None:
             model.load_state_dict(blob)
         print(f"resumed from {ckpt} at batch {done:,}", flush=True)
 
-    def _export(args, model, mean40, std40, val_f1):
+    def _export(args, model, mean40, std40, val_f1, val_auc):
         sd = model.state_dict()
         H = args.hidden
         L = args.layers
@@ -153,7 +189,8 @@ def main() -> None:
                 fmin=80.0, fmax=3800.0, deltas=False, context=0,
                 thr_hi=0.5, thr_lo=0.3, hangover_ms=250.0, on_frames=3,
                 trained_with="scripts/train_rnn.py", data=str(args.data),
-                val_f1=round(val_f1, 4)))),
+                val_f1=round(val_f1, 4), val_auc=round(val_auc, 4),
+                selected_on="val_auc", pos_weight=round(float(pos_w), 4)))),
         }
         args.out.parent.mkdir(parents=True, exist_ok=True)
         np.savez(str(args.out), **npz)
@@ -176,7 +213,7 @@ def main() -> None:
         Xb = norm(Xb)
         opt.zero_grad()
         lo, _ = model(torch.tensor(Xb))
-        loss = bce(lo, torch.tensor(yb))
+        loss = bce(lo, torch.tensor(yb), pos_weight=pos_w_t)
         loss.backward()
         opt.step()
         tot += float(loss); done += 1; since += 1
@@ -186,16 +223,18 @@ def main() -> None:
                        str(args.out) + ".ckpt")
             next_ckpt += 500
         if done == next_val:
-            f1 = eval_val()
+            f1, auc = eval_val()
             ep = done // args.batches_per_epoch
             print(f"[gru] epoch {ep:3d}  loss {tot/max(since,1):.4f}  "
-                  f"val_f1 {f1:.4f}  ({done:,}/{total_target:,})", flush=True)
+                  f"val_f1 {f1:.4f}  val_auc {auc:.4f}  "
+                  f"({done:,}/{total_target:,})", flush=True)
             tot, since = 0.0, 0
-            if f1 > best["f1"]:
-                best = {"f1": f1, "state": {k: v.detach().clone() for k, v in
-                                            model.state_dict().items()}}
+            if auc > best["auc"]:
+                best = {"f1": f1, "auc": auc,
+                        "state": {k: v.detach().clone() for k, v in
+                                  model.state_dict().items()}}
                 # save-best immediately: an OOM kill never loses the champion
-                _export(args, model, mean40, std40, best["f1"])
+                _export(args, model, mean40, std40, f1, auc)
             next_val += args.batches_per_epoch
     print("TRAINING_COMPLETE", flush=True)
     if best["state"] is not None:
@@ -207,8 +246,8 @@ def main() -> None:
             s = w.abs().amax(dim=1, keepdim=True).clamp(min=1e-12) / 127.0
             rq = (w / s).round().clamp(-127, 127)
             return w + (rq * s - w).detach()      # straight-through estimator
-        qparams = [m.weight for n, m in model.named_modules()
-                   if isinstance(m, (nn.GRU, nn.Linear))]
+        qparams = [p for n, p in model.named_parameters()
+                   if "weight" in n and p.ndim == 2]
         qopt = torch.optim.Adam(model.parameters(), lr=args.lr * 0.1)
         model.train()
         print(f"QAT fine-tune {args.qat_epochs} epochs "
@@ -229,48 +268,26 @@ def main() -> None:
                                           dtype=np.float32) for o in offs])
                 opt.zero_grad(); qopt.zero_grad()
                 lo, _ = model(torch.tensor(norm(Xb)))
-                loss = bce(lo, torch.tensor(yb))
+                loss = bce(lo, torch.tensor(yb), pos_weight=pos_w_t)
                 loss.backward()
                 qopt.step()
                 for p, mast in zip(qparams, masters):
                     p.data.copy_(mast)               # restore float masters
                 tot += float(loss)
-            f1 = eval_val()
+            f1, auc = eval_val()
             print(f"[qat] epoch {ep:3d}  loss {tot/(args.batches_per_epoch//5):.4f}  "
-                  f"val_f1 {f1:.4f}", flush=True)
-            _export(args, model, mean40, std40, f1)   # keep best QAT exported
+                  f"val_f1 {f1:.4f}  val_auc {auc:.4f}", flush=True)
+            if auc >= best["auc"]:                   # keep best QAT, never regress
+                best = {"f1": f1, "auc": auc,
+                        "state": {k: v.detach().clone() for k, v in model.state_dict().items()}}
+                _export(args, model, mean40, std40, f1, auc)
+        print("QAT_COMPLETE", flush=True)
 
-    # ---- export to the numpy runtime format (teensyvad/rnn.py) ----
-    sd = model.state_dict()
-    H = args.hidden
-    # torch gate row order is [r, z, n]; our runtime keys are [z, r, n]
-    wiz, wir, win = (sd["gru.weight_ih_l0"].numpy()[H:2*H].T,
-                     sd["gru.weight_ih_l0"].numpy()[0:H].T,
-                     sd["gru.weight_ih_l0"].numpy()[2*H:3*H].T)
-    whz, whr, whn = (sd["gru.weight_hh_l0"].numpy()[H:2*H].T,
-                     sd["gru.weight_hh_l0"].numpy()[0:H].T,
-                     sd["gru.weight_hh_l0"].numpy()[2*H:3*H].T)
-    npz = {
-        "W/Wiz": wiz, "W/Wir": wir, "W/Win": win,
-        "W/Whz": whz, "W/Whr": whr, "W/Whn": whn,
-        "b/z": (sd["gru.bias_ih_l0"].numpy()[H:2*H] + sd["gru.bias_hh_l0"].numpy()[H:2*H]),
-        "b/r": (sd["gru.bias_ih_l0"].numpy()[0:H] + sd["gru.bias_hh_l0"].numpy()[0:H]),
-        "b/n": (sd["gru.bias_ih_l0"].numpy()[2*H:3*H] + sd["gru.bias_hh_l0"].numpy()[2*H:3*H]),
-        "Wh/h1": sd["h1.weight"].numpy().T, "bh/h1": sd["h1.bias"].numpy(),
-        "Wh/h2": sd["h2.weight"].numpy().T, "bh/h2": sd["h2.bias"].numpy(),
-        "in_mean": mean40.astype(np.float32), "in_std": std40.astype(np.float32),
-        "meta": np.array(json_meta := __import__("json").dumps(dict(
-            arch="gru", hidden=args.hidden, layers=args.layers, head=args.head, sr=SR,
-            win_ms=25.0, hop_ms=10.0, n_fft=256, n_mels=20,
-            fmin=80.0, fmax=3800.0, deltas=False, context=0,
-            thr_hi=0.5, thr_lo=0.3, hangover_ms=250.0, on_frames=3,
-            trained_with="scripts/train_rnn.py", data=str(args.data),
-            val_f1=round(best["f1"], 4)))),
-    }
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    np.savez(str(args.out), **npz)
+    # ---- final export: refresh the champion's npz with best-restore weights.
+    # Single format for every layer count: "gru/L*" (teensyvad/rnn.py layout).
+    _export(args, model, mean40, std40, best["f1"], best["auc"])
     print(f"saved → {args.out}  best val_f1 {best['f1']:.4f}  "
-          f"({time.time()-t0:.0f}s)")
+          f"best val_auc {best['auc']:.4f}  ({time.time()-t0:.0f}s)", flush=True)
     if args.calibrate_ami:
         import subprocess
         subprocess.run([sys.executable, "scripts/eval_gru.py",

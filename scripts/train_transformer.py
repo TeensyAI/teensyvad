@@ -65,6 +65,9 @@ def main() -> None:
     ap.add_argument("--epochs", type=int, default=8)
     ap.add_argument("--batches-per-epoch", type=int, default=1500)
     ap.add_argument("--lr", type=float, default=1e-3)
+    ap.add_argument("--pos-weight", type=float, default=0.0,
+                    help="BCE pos_weight for speech frames. 0 = auto: "
+                         "(1-prior)/prior clamped to [0.25, 4].")
     ap.add_argument("--qat-epochs", type=int, default=3,
                     help="QAT fine-tune epochs after float training (0 = off)")
     ap.add_argument("--out", type=Path, default=Path("models/teensy-v7-tt.npz"))
@@ -88,29 +91,52 @@ def main() -> None:
     opt = torch.optim.Adam(model.parameters(), lr=args.lr)
     bce = torch.nn.functional.binary_cross_entropy_with_logits
 
+    # Prior correction + degenerate-floor printout (mirrors train_rnn.py).
+    _prior_sample = np.asarray(yteach[:min(len(yteach), 5_000_000)], dtype=np.float32)
+    prior = float(_prior_sample.mean())
+    pos_w = args.pos_weight if args.pos_weight > 0 else min(max((1 - prior) / max(prior, 1e-6), 0.25), 4.0)
+    pos_w_t = torch.tensor(pos_w)
+    val_prior = float(yv.mean())
+    print(f"train prior {prior:.4f}  pos_weight {pos_w:.3f}  "
+          f"val prior {val_prior:.4f}  all-ones F1 floor {2*val_prior/(1+val_prior):.4f}",
+          flush=True)
+
     chunk = np.asarray(F[:1_000_000], dtype=np.float64)
     mean40 = chunk.mean(0); std40 = np.maximum(chunk.std(0), 1e-3); del chunk
     def norm(X):
         return ((X - mean40) / std40).astype(np.float32)
 
-    def eval_val() -> float:
-        """Windowed streaming approximation: 750-frame segments, drop the
-        first 250 warmup frames per segment (exact for causal attention)."""
+    def eval_val() -> tuple[float, float]:
+        """Windowed streaming F1 @ 0.5 plus tie-aware rank AUC (the
+        checkpoint-selection metric — F1 saturates at the all-ones floor
+        when a model over-predicts speech; AUC keeps ranking)."""
         model.eval()
-        preds, seg, warm = [], 750, 250
+        logits, seg, warm = [], 750, 250
         with torch.no_grad():
             for s in range(0, len(Fv), seg - warm):
                 lo = model(torch.tensor(norm(Fv[s:s + seg])).unsqueeze(0)).reshape(-1)
-                preds.append(lo.numpy()[(warm if s > 0 else 0):])
+                logits.append(lo.numpy()[(warm if s > 0 else 0):])
         model.train()
-        pred = (np.concatenate(preds) > 0).astype(np.float32)
+        logit = np.concatenate(logits).astype(np.float64)
+        pred = (logit > 0).astype(np.float32)
         yy = yv[-len(pred):]
         tp = float(((pred == 1) & (yy == 1)).sum())
         fp = float(((pred == 1) & (yy == 0)).sum())
         fn = float(((pred == 0) & (yy == 1)).sum())
-        return 2 * tp / max(2 * tp + fp + fn, 1.0)
+        f1 = 2 * tp / max(2 * tp + fp + fn, 1.0)
+        pos = yy == 1
+        n_pos, n_neg = int(pos.sum()), int((~pos).sum())
+        if n_pos == 0 or n_neg == 0:
+            return f1, 0.5
+        sorter = np.argsort(logit, kind="mergesort")
+        s = logit[sorter]
+        uniq, first, counts = np.unique(s, return_index=True, return_counts=True)
+        midrank = (first + 1 + first + counts) / 2.0
+        ranks = midrank[np.searchsorted(uniq, logit)]
+        auc = float((ranks[pos].sum() - n_pos * (n_pos + 1) / 2.0) / (n_pos * n_neg))
+        return f1, auc
 
-    def _export(val_f1: float) -> None:
+    def _export(val_f1: float, val_auc: float) -> None:
         sd = model.state_dict()
         npz = {
             "in_proj/W": sd["in_proj.weight"].numpy().T,
@@ -127,7 +153,9 @@ def main() -> None:
                 fmin=80.0, fmax=3800.0, deltas=False, context=args.window,
                 thr_hi=0.5, thr_lo=0.3, hangover_ms=250.0, on_frames=3,
                 trained_with="scripts/train_transformer.py", data=str(args.data),
-                val_f1=round(val_f1, 4), params=n_params))),
+                val_f1=round(val_f1, 4), val_auc=round(val_auc, 4),
+                selected_on="val_auc", pos_weight=round(float(pos_w), 4),
+                params=n_params))),
         }
         for li in range(args.layers):
             p = f"enc.layers.{li}."
@@ -142,7 +170,7 @@ def main() -> None:
         args.out.parent.mkdir(parents=True, exist_ok=True)
         np.savez(str(args.out), **npz)
 
-    best = {"f1": -1.0}
+    best = {"f1": -1.0, "auc": -1.0}
     total_target = args.epochs * args.batches_per_epoch
     next_val = args.batches_per_epoch
     print(f"training tt d={args.d_model} layers={args.layers} window={args.window} … "
@@ -156,24 +184,24 @@ def main() -> None:
         yb = np.stack([np.asarray(yteach[o:o + args.chunk], dtype=np.float32) for o in offs])
         opt.zero_grad()
         lo = model(torch.tensor(norm(Xb)))
-        loss = bce(lo, torch.tensor(yb))
+        loss = bce(lo, torch.tensor(yb), pos_weight=pos_w_t)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)
         opt.step()
-        tot += float(loss)
+        tot += float(loss); since += 1
         if done % 500 == 0:
             # crash-resilient: full state every 500 batches
             torch.save({"model": model.state_dict(), "done": done},
                        str(args.out) + ".ckpt")
         if done == next_val or done == total_target:
-            f1 = eval_val()
+            f1, auc = eval_val()
             ep = done / args.batches_per_epoch
             print(f"[tt] it {done:5d} ({ep:4.1f}ep)  loss {tot/max(since,1):.4f}  "
-                  f"val_f1 {f1:.4f}", flush=True)
+                  f"val_f1 {f1:.4f}  val_auc {auc:.4f}", flush=True)
             tot, since = 0.0, 0
-            if f1 > best["f1"]:
-                best = {"f1": f1}
-                _export(f1)                    # save-best immediately
+            if auc > best["auc"]:
+                best = {"f1": f1, "auc": auc}
+                _export(f1, auc)                   # save-best immediately
             next_val += args.batches_per_epoch
     print("TRAINING_COMPLETE", flush=True)
 
@@ -189,7 +217,7 @@ def main() -> None:
         model.train()
         print(f"QAT fine-tune {args.qat_epochs} epochs …", flush=True)
         for ep in range(1, args.qat_epochs + 1):
-            tot = 0.0
+            tot, since = 0.0, 0
             for it in range(args.batches_per_epoch // 5):
                 masters = [pp.data.clone() for pp in qparams]
                 for pp in qparams:
@@ -204,20 +232,22 @@ def main() -> None:
                                           dtype=np.float32) for o in offs])
                 qopt.zero_grad(); opt.zero_grad()
                 lo = model(torch.tensor(norm(Xb)))
-                loss = bce(lo, torch.tensor(yb))
+                loss = bce(lo, torch.tensor(yb), pos_weight=pos_w_t)
                 loss.backward()
                 qopt.step()
                 for pp, mast in zip(qparams, masters):
                     pp.data.copy_(mast)
-                tot += float(loss)
-            f1 = eval_val()
-            print(f"[qat] epoch {ep:3d}  loss {tot/(args.batches_per_epoch//5):.4f}  "
-                  f"val_f1 {f1:.4f}", flush=True)
-            if f1 >= best["f1"]:
-                best = {"f1": f1}
-                _export(f1)
+                tot += float(loss); since += 1
+            f1, auc = eval_val()
+            print(f"[qat] epoch {ep:3d}  loss {tot/max(since,1):.4f}  "
+                  f"val_f1 {f1:.4f}  val_auc {auc:.4f}", flush=True)
+            tot, since = 0.0, 0
+            if auc >= best["auc"]:
+                best = {"f1": f1, "auc": auc}
+                _export(f1, auc)
 
-    print(f"best val_f1 {best['f1']:.4f}  ({time.time()-t0:.0f}s)", flush=True)
+    print(f"best val_f1 {best['f1']:.4f}  best val_auc {best['auc']:.4f}  "
+          f"({time.time()-t0:.0f}s)", flush=True)
 
 
 if __name__ == "__main__":

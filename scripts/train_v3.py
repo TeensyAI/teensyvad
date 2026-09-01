@@ -118,11 +118,13 @@ def train_float(model, tr: LazyWindows, va: LazyWindows, *, epochs=30, bs=2048,
         ev = eval_lazy(model, va, thr, bs=131072)
         print(f"[{tag}] epoch {ep:3d}  loss {np.mean(losses):.4f}  "
               f"val_f1 {ev['f1']:.4f}  val_auc {ev['auc']:.4f}", flush=True)
-        if ev["f1"] > best["f1"]:
+        # Select on AUC: F1@0.5 saturates at the all-ones floor on
+        # speech-heavy val sets, making checkpoint choice invisible.
+        if ev["auc"] > best["auc"]:
             best = {"f1": ev["f1"], "auc": ev["auc"], "ep": ep,
                     "params": {k: v.copy() for k, v in model.p.items()}}
         elif ep - best["ep"] >= patience:
-            print(f"[{tag}] early stop (best {best['f1']:.4f} @ {best['ep']})")
+            print(f"[{tag}] early stop (best auc {best['auc']:.4f} @ {best['ep']})")
             break
     for k, v in best["params"].items():
         model.p[k] = v
@@ -133,7 +135,7 @@ def qat_finetune(model, tr: LazyWindows, va: LazyWindows, *, epochs=10, bs=2048,
                  lr=1e-3, patience=10, thr=0.5, seed=1, tag="qat"):
     rng = np.random.default_rng(seed)
     opt = Adam(model.p, lr=lr)
-    best = {"f1": -1, "params": {k: v.copy() for k, v in model.p.items()}, "ep": -1}
+    best = {"f1": -1, "auc": -1, "params": {k: v.copy() for k, v in model.p.items()}, "ep": -1}
     for ep in range(1, epochs + 1):
         losses = []
         pool = tr._pool
@@ -146,12 +148,12 @@ def qat_finetune(model, tr: LazyWindows, va: LazyWindows, *, epochs=10, bs=2048,
         qm = QuantizedMLP(list(model.sizes), ALL_Q).quantize_from(model)
         ev = eval_lazy(qm, va, thr, bs=131072)
         print(f"[{tag}] epoch {ep:3d}  loss {np.mean(losses):.4f}  "
-              f"int8-val F1 {ev['f1']:.4f}", flush=True)
-        if ev["f1"] > best["f1"]:
-            best = {"f1": ev["f1"], "ep": ep,
+              f"int8-val F1 {ev['f1']:.4f}  val_auc {ev['auc']:.4f}", flush=True)
+        if ev["auc"] > best["auc"]:
+            best = {"f1": ev["f1"], "auc": ev["auc"], "ep": ep,
                     "params": {k: v.copy() for k, v in model.p.items()}}
         elif ep - best["ep"] >= patience:
-            print(f"[{tag}] early stop (best {best['f1']:.4f} @ {best['ep']})")
+            print(f"[{tag}] early stop (best auc {best['auc']:.4f} @ {best['ep']})")
             break
     for k, v in best["params"].items():
         model.p[k] = v
@@ -243,6 +245,8 @@ def main() -> None:
         meta = dict(m.meta)
         qm.save(args.out_qat, extra_meta={**meta, "qat": True})
         print(f"saved → {args.out_qat}  ({time.time()-t0:.0f}s)")
+
+    print("TRAINING_COMPLETE", flush=True)
 
 
 if __name__ == "__main__":

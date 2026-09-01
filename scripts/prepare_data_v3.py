@@ -47,6 +47,8 @@ def mass_convert(files, cache, workers=8):
 
 def collect_utt_speakers(root: Path, limit: int, rng):
     utts = sorted(root.rglob("*.flac"))
+    # exclude dev/test splits when a corpus-wide root is passed
+    utts = [u for u in utts if "/dev" not in str(u) and "/test" not in str(u)]
     rng.shuffle(utts)
     return utts[:limit]
 

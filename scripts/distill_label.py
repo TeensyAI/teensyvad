@@ -62,18 +62,31 @@ def label_split(model, torch, data_dir: Path, split: str, feat: LogMel) -> Path:
     if npy_mode:
         clip_len = np.load(data_dir / "clip_len.npy")
         assert split == "train", "npy mode currently handles the train split only"
-        wavs = sorted((data_dir / "audio").glob(f"{split}_*.wav"))
+        wavs = sorted((data_dir / "audio").glob(f"{split}_*.wav"),
+              key=lambda p: int(p.stem.split("_")[-1]))  # NUMERIC: %05d names scramble lexicographically past 99999
         assert len(wavs) == len(clip_len), \
             f"{split}: {len(wavs)} wavs vs {len(clip_len)} clips"
         total = int(clip_len.sum())
         # teacher outputs → SEPARATE files (construction labels stay in y.npy)
-        ysoft_m = np.lib.format.open_memmap(data_dir / "ysoft.npy", mode="w+",
+        # RESUME support: OOM kills must not cost 3h of teacher time.
+        prog_file = data_dir / ".distill_progress"
+        cum = np.concatenate([[0], np.cumsum(clip_len)])
+        if prog_file.exists() and (data_dir / "yteach.npy").exists():
+            pos = int(prog_file.read_text().strip() or 0)
+            j0 = int(np.searchsorted(cum, pos, side="right") - 1)
+            mode = "r+"
+            print(f"  resuming at wav {j0 + 1}/{len(wavs)} (frame {pos:,})", flush=True)
+        else:
+            pos, j0, mode = 0, 0, "w+"
+            prog_file.write_text("0")
+        ysoft_m = np.lib.format.open_memmap(data_dir / "ysoft.npy", mode=mode,
                                             dtype=np.float16, shape=(total,))
-        yteach_m = np.lib.format.open_memmap(data_dir / "yteach.npy", mode="w+",
+        yteach_m = np.lib.format.open_memmap(data_dir / "yteach.npy", mode=mode,
                                              dtype=np.float16, shape=(total,))
-        pos = 0
         t0 = time.time()
         for j, w in enumerate(wavs):
+            if j < j0:
+                continue
             x, _ = read_wav(w)
             n = int(clip_len[j])
             centers = (feat.frame_len / 2 + np.arange(n) * feat.hop_len) / SR
@@ -85,11 +98,14 @@ def label_split(model, torch, data_dir: Path, split: str, feat: LogMel) -> Path:
             ysoft_m[pos:pos + n] = soft.astype(np.float16)
             yteach_m[pos:pos + n] = (soft >= TEACHER_THR)
             pos += n
+            prog_file.write_text(str(pos))
             if (j + 1) % 1000 == 0:
                 print(f"  [{split}] {j + 1}/{len(wavs)}  ({time.time()-t0:.0f}s)",
                       flush=True)
         ysoft_m.flush(); yteach_m.flush()
         del ysoft_m, yteach_m
+        prog_file.unlink(missing_ok=True)
+        (data_dir / ".labels_done").write_text("ok")
 
         hard = np.asarray(np.load(data_dir / "yteach.npy") > 0.5)
         print(f"[{split}] {total:,} frames → ysoft.npy + yteach.npy (memmap)")
@@ -103,7 +119,8 @@ def label_split(model, torch, data_dir: Path, split: str, feat: LogMel) -> Path:
     F, y_con, snr = z["F"], z["y"], z["snr"]
     clip_len = z["clip_len"]
     audio_dir = data_dir / "audio"
-    wavs = sorted(audio_dir.glob(f"{split}_*.wav"))
+    wavs = sorted(audio_dir.glob(f"{split}_*.wav"),
+              key=lambda p: int(p.stem.split("_")[-1]))
     assert len(wavs) == len(clip_len), f"{split}: {len(wavs)} wavs vs {len(clip_len)} clips"
 
     soft_parts, t0 = [], time.time()
